@@ -1,0 +1,49 @@
+# Configuración del Agente Extractor de Productos
+# Este archivo describe la configuración del agente.
+# Cuando migremos a Claude Managed Agents, estos valores se pasan al crear el Agent.
+
+agent:
+  name: gds-folders-extractor
+  description: >
+    Agente que procesa catálogos promocionales de supermercados argentinos
+    y extrae los productos visibles con sus datos estructurados.
+
+model:
+  # Modelo principal para el agente
+  primary: claude-opus-4-6
+  # Modelo fallback en caso de error o límite de rate
+  fallback: claude-sonnet-4-6
+
+skills:
+  # Directorios donde vive cada tipo de skill
+  core_dir: skills/core
+  chains_dir: skills/chains
+
+  # Skills core que se cargan siempre al arrancar el agente
+  core_always_loaded:
+    - extracting-products
+    - reading-prices
+    - reading-promotions
+    - classifying-ad-type
+    - detecting-combos
+    - handling-closed-brand-categories
+    - extracting-multiple-products-per-image
+    - formatting-output
+
+system_prompt:
+  # Path al archivo con el system prompt del agente
+  path: agent/system_prompt.md
+
+# Para cuando migremos a Managed Agents
+managed_agents:
+  # Headers beta requeridos al llamar la API
+  beta_header: managed-agents-2026-04-01
+
+  # Environment config (para el container cuando corra en Managed Agents)
+  environment:
+    # Paquetes que el agente necesita en su sandbox
+    packages:
+      - python3
+      - pillow  # manejo de imágenes
+    # Si el agente necesita acceso a red
+    network_access: false

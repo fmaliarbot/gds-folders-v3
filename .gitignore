@@ -1,0 +1,33 @@
+# Python (por si en el futuro se agrega código)
+__pycache__/
+*.py[cod]
+*$py.class
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Environment / secrets
+.env
+.env.local
+.env.*.local
+
+# Archives (evitar commitear zips de paquetes previos)
+*.zip
+*.tar
+*.tar.gz
+*.rar
+*.7z
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs / outputs de tests
+*.log
+.tmp/
+tmp/
