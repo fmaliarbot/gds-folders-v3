@@ -1,13 +1,13 @@
 ---
 name: handling-closed-brand-categories
-description: Maneja casos donde la oferta del catálogo aplica a una categoría cerrada de marca o de tipo de producto, en lugar de a un SKU específico. Genera registros de "SKU genérico" para representar la oferta y desagrega por marca cuando la categoría cerrada incluye productos de varias marcas. Esencial para que GDSnet pueda cargar correctamente las ofertas que no tienen un SKU exacto asociado.
+description: Maneja casos donde la oferta del catálogo aplica a una categoría cerrada de marca o de tipo de producto en lugar de a un SKU específico. Cubre 5 patrones: una marca con una categoría, una categoría con varias marcas, categoría sin marca específica, marca cerrada sin categoría informada, y bloques promocionales con footer macro-categoría que requieren descomposición. Genera registros con SKU genérico (marca = "VARIAS MARCAS") cuando corresponde y desagrega macros del folder en categorías canónicas usando references/categorias-contratadas.md.
 ---
 
 # Manejo de Categorías Cerradas
 
 ## Rol
 
-Hay catálogos donde la oferta no aplica a un SKU específico, sino a una categoría completa o a un set de productos compartidos por una marca. Tu trabajo es detectar estos casos y generar los registros adecuados según las convenciones de GDSnet.
+Hay catálogos donde la oferta no aplica a un SKU específico, sino a un grupo de productos definido por marca, tipo o categoría. Esta skill cubre cómo detectar estos casos y generar los registros adecuados.
 
 ## Qué es una "categoría cerrada"
 
@@ -16,8 +16,8 @@ Una **categoría cerrada** es cuando la oferta aplica a un grupo de productos de
 Ejemplos típicos:
 - "Yerbas Cruz de Malta" (no especifica gramaje, aplica a todas las yerbas Cruz de Malta).
 - "Tabletas Milka" (todas las tabletas, sin especificar variedad).
+- "EN GOLOSINAS" como footer de un bloque promocional (cubre múltiples categorías canónicas).
 - "Aceites todos" (en Maxiconsumo).
-- "Galletitas Cadbury" (todas las variedades).
 
 ## Tipos de categoría cerrada
 
@@ -100,9 +100,9 @@ La oferta cubre una categoría amplia sin marca. Típico de mayoristas como Maxi
 
 La oferta cubre toda una marca, y la marca cubre productos de varias categorías. El catálogo no especifica las categorías.
 
-**Ejemplo:** Folder muestra "ESPADOL todos los productos al 30%". ESPADOL tiene productos en JABONES DE TOCADOR, ALCOHOL EN GEL, ANTISÉPTICOS, etc.
+**Ejemplo:** Folder muestra "ESPADOL todos los productos al 30%".
 
-**Regla:** generar tantos registros como categorías tenga la marca. Si está disponible `references/marcas-cerradas-sin-categoria.md` con el mapeo, usar esa lista. Si no está disponible, generar **1 registro con `categoria: null`** y agregar `CATEGORY_NOT_DEFINED` a `review_reasons`.
+**Regla:** sin lista canónica de marcas con sus categorías, generar **1 registro con `categoria: null`** y agregar `CATEGORY_NOT_DEFINED` a `review_reasons`.
 
 ```json
 {
@@ -116,16 +116,101 @@ La oferta cubre toda una marca, y la marca cubre productos de varias categorías
 }
 ```
 
-**Nota:** la lista canónica de marcas cerradas con sus categorías es responsabilidad de GDSnet (vía David). Hasta que esté disponible, dejar `null` y flagear.
+### Caso E: Bloque promocional con footer macro-categoría (NUEVO)
+
+Patrón frecuente en folders de COTO, Carrefour y otros: un **bloque promocional** que tiene:
+
+1. **Una promoción dominante** (ej: "40% DTO", "70% 2da unidad llevando 2 iguales", "3X2 igual marca y variedad").
+2. **Un grupo de marcas listadas** con sus logos.
+3. **Un footer/banner** que indica una **macro-categoría** del folder (ej: "EN GOLOSINAS", "EN VINOS FINOS, CHAMPAÑAS Y ESPUMANTES", "EN SHAMPOO, ACONDICIONADOR Y TRATAMIENTOS CAPILARES", "EN ENCURTIDOS Y ESPECIAS").
+
+**Importante:** las macro-categorías del folder **no son categorías canónicas de GDSnet**. Son etiquetas descriptivas del folder que pueden cubrir varias categorías canónicas reales.
+
+**Regla de generación de registros:**
+
+Para un bloque con N marcas listadas y un footer macro:
+
+#### Paso 1 — Generar registros por marca listada
+
+Por cada marca dentro del bloque, generar 1 registro siguiendo el patrón habitual:
+- `marca: <marca>`
+- `descripcion: <marca> + tipo de producto leído de la imagen` (ver `building-sku-description`)
+- `categoria: <categoria canónica del producto>` (matcheada contra `references/categorias-contratadas.md`)
+- Promociones del bloque aplicadas a `tipo_promocion_oferta` (y a `tipo_promocion_tarjeta_fidelidad` cuando corresponda).
+
+#### Paso 2 — Descomponer la macro-categoría del footer
+
+Mirá la macro-categoría del footer (ej: "EN GOLOSINAS"). Buscá en `references/categorias-contratadas.md` qué categorías canónicas razonablemente caen dentro de esa macro.
+
+**Ejemplos de razonamiento:**
+
+- "EN GOLOSINAS" → matchea con `ALFAJORES`, `CARAMELOS`, `CHICLES`, `CHOCOLATES` (las 4 categorías de la lista canónica que naturalmente son golosinas).
+- "EN VINOS FINOS, CHAMPAÑAS Y ESPUMANTES" → matchea con `VINOS`, `CHAMPAGNE`. Si "ESPUMANTES" no matchea con ninguna categoría canónica, no generar un registro adicional para esa palabra.
+- "EN SHAMPOO, ACONDICIONADOR Y TRATAMIENTOS CAPILARES" → matchea con `SHAMPOO`, `ACONDICIONADOR`, `BALSAMOS` (porque `BALSAMOS` incluye "tratamiento, serum, ampollas" según la columna INCLUYE).
+- "EN ENCURTIDOS Y ESPECIAS" → ninguna de las 74 categorías canónicas matchea con encurtidos ni especias.
+
+Por cada categoría canónica encontrada en el match, generar 1 registro:
+
+```json
+{
+  "categoria": "<CATEGORIA CANONICA>",
+  "marca": "VARIAS MARCAS",
+  "descripcion": "<CATEGORIA CANONICA> TODOS",
+  "tipo_promocion_oferta": "<promo del bloque>",
+  ...
+}
+```
+
+#### Paso 3 — Si la macro no matchea con ninguna categoría canónica
+
+Si después de revisar la macro contra `references/categorias-contratadas.md` **ninguna** categoría canónica matchea con razonable certeza, generar **1 solo registro** flageado para revisión humana:
+
+```json
+{
+  "categoria": null,
+  "marca": "VARIAS MARCAS",
+  "descripcion": null,
+  "descripcion_literal": "EN ENCURTIDOS Y ESPECIAS",
+  "tipo_promocion_oferta": "<promo del bloque>",
+  "needs_review": true,
+  "review_reasons": ["MACRO_CATEGORY_UNMAPPED"],
+  ...
+}
+```
+
+#### Ejemplo completo del Caso E
+
+**Imagen:** bloque promocional con "3X2 igual marca y variedad", marcas Pepitos, Milka, Terrabusi, Oreo, Knorr, La Serenísima, Las Tres Niñas, Dove, Villavicencio, Swift, Gordon's, Crowie, NotCo, footer "EN GOLOSINAS".
+
+**Registros generados (esquema, no completo):**
+
+```json
+[
+  // Paso 1 - una línea por marca:
+  {"marca": "PEPITOS", "categoria": "GALLETAS DULCES", "descripcion": "PEPITOS GALLETITAS", ...},
+  {"marca": "MILKA", "categoria": "GALLETAS DULCES", "descripcion": "MILKA GALLETITAS", ...},
+  {"marca": "TERRABUSI", "categoria": "GALLETAS DULCES", "descripcion": "TERRABUSI GALLETITAS", ...},
+  {"marca": "OREO", "categoria": "GALLETAS DULCES", "descripcion": "OREO GALLETITAS", ...},
+  {"marca": "KNORR", "categoria": "CALDOS", "descripcion": "KNORR CALDOS", ...},
+  // ... más marcas...
+
+  // Paso 2 - desagregación de "EN GOLOSINAS":
+  {"marca": "VARIAS MARCAS", "categoria": "ALFAJORES", "descripcion": "ALFAJORES TODOS", ...},
+  {"marca": "VARIAS MARCAS", "categoria": "CARAMELOS", "descripcion": "CARAMELOS TODOS", ...},
+  {"marca": "VARIAS MARCAS", "categoria": "CHICLES", "descripcion": "CHICLES TODOS", ...},
+  {"marca": "VARIAS MARCAS", "categoria": "CHOCOLATES", "descripcion": "CHOCOLATES TODOS", ...}
+]
+```
 
 ## Cómo decidir si es categoría cerrada o productos individuales
 
 Pregunta clave: **¿el folder muestra SKUs específicos con sus medidas, o está hablando de "todos los productos de X"?**
 
 **Es categoría cerrada cuando:**
-- El texto dice "todas las yerbas X", "todos los chocolates X", "todas las galletitas X".
+- El texto dice "todas las yerbas X", "todos los chocolates X".
 - La imagen muestra varios envases de la misma marca pero sin destacar uno con precio individual.
 - El precio o promoción aplica al conjunto, no a un envase específico.
+- Hay un footer macro-categoría aplicable a todo el bloque (Caso E).
 
 **Es producto individual (no categoría cerrada) cuando:**
 - El folder muestra un envase con su gramaje y precio específico.
@@ -139,20 +224,24 @@ Un bloque "Kellogg's" con Zucaritas, Froot Loops, Müsli y Choco Krispis es un c
 
 ### Diferencia con variedades
 
-"Yerbas Amanda" donde Amanda solo tiene un tipo de yerba (con/sin palo, con stevia, etc.) puede ser variedades — un solo registro con `tipo_variedad: "Varios tipos"`. La diferencia es: ¿son SKUs claramente distintos o variedades del mismo producto base?
+"Yerbas Amanda" donde Amanda solo tiene un tipo de yerba (con/sin palo, con stevia, etc.) puede ser variedades — un solo registro con `tipo_variedad: "Varios tipos"`.
 
 ## Notas de diseño
 
 ### Por qué desagregamos por marca en el Caso B
 
-David lo escribió textualmente en el documento de ajustes: *"se genera un sku genérico llamado 'yerbas y mate cocido' y se graban 3 líneas, uno para cada marca: Nobleza gaucha, Cruz Malta y Taraguí"*.
+David lo escribió textualmente en el documento de ajustes: *"se genera un sku genérico llamado 'yerbas y mate cocido' y se graban 3 líneas, uno para cada marca"*. Es la convención de GDSnet para que cada marca sea trazable individualmente en su base maestra.
 
-Es la convención de GDSnet para que cada marca sea trazable individualmente en su base maestra.
+### Por qué descomponemos macro-categorías en el Caso E
 
-### Por qué el caso ESPADOL es especial
+Las macro-categorías del folder ("GOLOSINAS", "VINOS FINOS, CHAMPAÑAS Y ESPUMANTES") son etiquetas comerciales del folder, no categorías canónicas de GDSnet. La base maestra trabaja con las 74 categorías de `references/categorias-contratadas.md`. Si el agente carga "GOLOSINAS" como categoría, ese registro queda huérfano porque "GOLOSINAS" no existe en el sistema de GDS.
 
-Porque el conocimiento de "qué categorías tiene cada marca" no está en el catálogo — está en la base interna de GDSnet. El agente no puede inferirlo solo. Por eso, sin la lista canónica, dejamos `null` y flagueamos para revisión humana.
+### Por qué el agente decide el match macro→categorías sin tabla pre-cargada
 
-### Por qué usamos "VARIAS MARCAS" como marca cuando aplica
+GDSnet no provee una tabla canónica de "macro → [categorías]". Pretender una tabla mantenida por nosotros sería inventar reglas de negocio. El agente decide caso por caso usando la lista canónica de las 74 categorías y el sentido común sobre qué cae dentro de cada macro.
 
-Es el valor que David usa en su Excel canónico para ofertas de tipo "todos los chocolates" sin marca específica. Lo respetamos como string literal.
+Si el agente no encuentra match razonable, flagea `MACRO_CATEGORY_UNMAPPED` para revisión humana en lugar de inventar una categoría.
+
+### Por qué usamos "VARIAS MARCAS" como marca
+
+Es el valor que David usa en su Excel canónico para ofertas de tipo "todos los chocolates" sin marca específica.

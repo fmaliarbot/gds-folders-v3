@@ -237,7 +237,25 @@ Independientemente del patrón:
 - **No inventar información** que no esté en el folder — si no hay variante visible, no agregarla.
 - **No mezclar patrones** — un SKU es A, B o C. No hay híbridos tipo "marca + tipo + TODOS + medida".
 - **No traducir** nombres de productos al español si el nombre original es en inglés (ej: "Corn Flakes" no se traduce a "Hojuelas de Maíz").
+- **No traducir nombres comerciales de línea a equivalentes funcionales.** Si el folder dice "7UP FREE", el SKU es `7UP FREE`, no `7UP S/AZ`. Si dice "Coca Cola Zero", es `COCA COLA ZERO`, no `COCA COLA S/AZ`. Aunque "Free" y "Zero" sean equivalentes funcionales de "sin azúcar", los nombres comerciales son parte del nombre del producto en la base maestra de GDSnet, y traducirlos rompe el match aunque la traducción sea semánticamente correcta. Aplicar las abreviaciones del diccionario solo cuando corresponde (ej: "Líquido" → `LIQ`), pero no para nombres comerciales de línea.
 - **No agregar la cadena al SKU** (ej: no escribir "COTO ALMA MORA MALBEC 750CC" — la cadena es un campo aparte).
+
+### Lista (no exhaustiva) de nombres comerciales de línea que se preservan tal cual
+
+Estos nombres son parte del SKU canónico y NO se traducen ni se reemplazan por equivalentes funcionales:
+
+| Nombre comercial | Equivalente funcional (NO usar) |
+|---|---|
+| `FREE` | S/AZ, SIN AZUCAR |
+| `ZERO` | S/AZ, SIN AZUCAR, S/CALORIAS |
+| `LIGHT` | LIGERO, BAJO EN CALORIAS |
+| `DIET` | DIETETICO, DIETETICA |
+| `ULTRA` | (no traducir) |
+| `BLACK` | NEGRO, NEGRA |
+| `ORIGINAL` | TRADICIONAL, CLASICO |
+| `CLASSIC` | CLASICO, CLASICA |
+| `MAX` | MAXIMO |
+| `PRO` | PROFESIONAL |
 
 ## Campos pendientes de definir con el cliente
 
