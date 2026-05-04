@@ -1,92 +1,123 @@
 ---
 name: classifying-ad-type
-description: Clasifica el tipo de aviso o imagen de cada producto del catálogo en uno de cuatro tipos (regular, destacada, publicidad, publicacion) según cómo se presenta visualmente. Usar siempre que se extraiga un producto, ya que esta clasificación afecta qué campos se esperan completos y si el producto irá a revisión. Incluye reglas de decisión, ejemplos y errores comunes a evitar.
+description: Clasifica cómo se presenta visualmente un producto dentro de una página del catálogo. Distingue entre 4 tipos de imagen según las convenciones de GDSnet — Regular, Destacado, Publicidad y Publicación. Usar para asignar el campo tipo_oferta de cada producto extraído. Aplica criterios visuales (tamaño relativo, presencia de precios, agrupación por fabricante) y no debe confundirse con tipo de promoción.
 ---
 
-# Clasificación de Tipo de Aviso
+# Clasificación del Tipo de Imagen
 
-## Problema que resuelve esta skill
+## Rol
 
-Cada producto extraído de un catálogo debe clasificarse según cómo se presenta visualmente en la página. Esta clasificación afecta qué datos se esperan completos y si el producto va a revisión humana.
+Para cada producto que extraés, asignás un valor al campo `tipo_oferta` que describe cómo se presenta visualmente en la página. Es un dato sobre la **presentación** del producto en el folder, no sobre el descuento ni el precio.
 
-## Los cuatro tipos
+## Los 4 valores canónicos
 
-### regular
+GDSnet usa exactamente estos 4 valores. No inventar otros, no abreviar, no traducir.
 
-**Qué se ve:** Producto individual con tamaño estándar y uniforme. No se destaca visualmente del resto de la página. Tiene un espacio asignado similar al de los demás productos.
+### 1. Regular
 
-**Datos esperados:** Todos o la mayoría de los campos completos — precio regular, precio oferta, descuento, marca, descripción, unidad de medida.
+**Definición:** producto presentado en formato normal, tamaño clásico. Es la mayoría de los productos en cualquier folder regular.
 
-**Ejemplo típico:** Una grilla de productos donde cada uno ocupa el mismo espacio rectangular, con su foto, nombre, marca, precio tachado y precio de oferta.
+**Cómo identificarlo:**
+- Está dentro de una grilla con otros productos de tamaño parecido.
+- No se destaca visualmente del resto de la página.
+- Tiene precio y/o promoción visible.
 
-### destacada
+**Ejemplo:** una página con 12 productos en una grilla de 3x4, todos con tamaño parecido y precio. Cada uno es `Regular`.
 
-**Qué se ve:** Producto que ocupa notablemente más espacio que los demás en la página. Imagen más grande, puede tener fondo de color diferente, borde especial, o estar en una posición prominente (centro, arriba, sección propia).
+### 2. Destacado
 
-**Datos esperados:** Los mismos que `regular`, generalmente más completos porque hay más espacio para mostrarlos.
+**Definición:** producto que ocupa más espacio que el resto, se destaca visualmente.
 
-**Cómo distinguir de regular:** Si sacás ese producto de la página, quedaría un hueco grande. Los productos regulares son intercambiables en tamaño — los destacados no.
+**Cómo identificarlo:**
+- Su imagen es notablemente más grande que las de los productos vecinos.
+- Puede ocupar el doble o más de área que un producto Regular en la misma página.
+- Suele estar en el centro, arriba, o a sangre (sin margen) de la página.
+- Tiene precio y/o promoción visible.
 
-### publicidad
+**Ejemplo:** una página tiene 8 productos, pero uno de ellos (un zapallo, una promoción de cerveza grande, un destacado de gaseosa) ocupa el 30-40% de la página solo.
 
-**Qué se ve:** Imagen del producto y/o marca, pero NO hay precios en pesos. Puede tener un tipo de promoción visible (ej: "2x1") pero sin valores monetarios. Puede tener un slogan o mensaje promocional genérico.
+**Diferencia con Publicación:** un producto Destacado es UN solo SKU presentado en grande. Una Publicación es UN bloque agrupando VARIOS SKUs del mismo fabricante.
 
-**Datos esperados:** Descripción, marca, y `tipo_promocion` si es visible. Los campos de precio quedan en `null`.
+### 3. Publicidad
 
-**Clave:** La ausencia de PRECIOS EN PESOS es lo que define este tipo. Si hay aunque sea un precio, no es publicidad. Pero si dice "2x1" sin precio, sigue siendo publicidad con `tipo_promocion: "2x1"`.
+**Definición:** producto que se presenta SIN indicar precios ni porcentajes de descuento.
 
-**Siempre va a revisión** por definición, porque no tiene datos de precio.
+**Cómo identificarlo:**
+- No hay precio visible junto al producto.
+- No hay porcentaje de descuento.
+- Puede haber un texto promocional genérico ("nuevo sabor", "edición limitada") pero no datos de oferta concretos.
+- Se usa para visibilizar el producto sin ofertar precio.
 
-### publicacion
+**Ejemplo:** Una marca de yogur aparece grande en la página pero solo dice "Yogur Yoghuísimo - Nuevo" sin precio ni descuento. Es `Publicidad`.
 
-**Qué se ve:** Un grupo de productos del MISMO fabricante o marca, presentados juntos bajo un banner o bloque visual unificado. Los productos individuales dentro del bloque pueden tener sus propios datos.
+**Importante:** Si el producto tiene un texto de promoción tipo `"2X1"` pero no precio, **sigue siendo Publicidad** (no se ven precios). El `tipo_promocion_oferta` se registra igual.
 
-**Datos esperados:** Variables. Algunos productos del grupo pueden tener precios, otros no. La promoción suele ser compartida (ej: "70% en la 2da unidad" para toda la marca).
+### 4. Publicación
 
-**Cómo distinguir de regular:** Los regulares son productos independientes en una grilla. Las publicaciones son agrupaciones intencionales por marca o fabricante. Ver la skill `handling-closed-brand-categories` para el tratamiento completo.
+**Definición:** imagen de un grupo de SKUs que pertenecen a un mismo fabricante, con alguna variable de oferta común.
 
-## Árbol de decisión
+**Cómo identificarlo:**
+- Se presenta un bloque visualmente unificado (mismo fondo, mismo borde, mismo título de marca).
+- Dentro del bloque hay varios SKUs distintos del mismo fabricante.
+- Hay una promoción común (ej: "35% DTO llevando 2 iguales") que aplica a todos.
+- Los SKUs individuales pueden o no tener precios visibles.
 
-```
-¿Se ven precios en pesos ($)?
-├── NO → ¿Se ve tipo de promoción (2x1, %, etc.)?
-│   ├── SÍ → "publicidad" (con tipo_promocion registrado)
-│   └── NO → "publicidad" (todo null excepto descripción/marca)
-└── SÍ
-    ├── ¿Es un grupo de productos de la misma marca?
-    │   ├── SÍ → "publicacion"
-    │   └── NO
-    │       ├── ¿Ocupa más espacio que los demás?
-    │       │   ├── SÍ → "destacada"
-    │       │   └── NO → "regular"
-```
+**Ejemplo:** un bloque "Kellogg's" con Zucaritas, Froot Loops, Müsli y Choco Krispis, con una sola leyenda "35% DTO llevando 2 iguales" que aplica a todos. Cada cereal individual es `Publicación`.
 
-## Errores comunes a evitar
+**Diferencia con Destacado:** Destacado es un solo SKU grande. Publicación es un bloque con varios SKUs del mismo fabricante.
 
-### Confundir "publicidad" con "regular sin precio"
+## Árbol de decisión rápido
 
-Si un producto regular simplemente no tiene precio visible (se borró, está tapado por otro elemento), sigue siendo `regular` con precio `null`. `publicidad` es cuando INTENCIONALMENTE no hay precio — es un espacio publicitario, no una oferta.
+Para clasificar un producto, hacete estas preguntas en orden:
 
-### Confundir "publicacion" con varios productos regulares
+1. **¿Está dentro de un bloque visualmente unificado del mismo fabricante con otros SKUs?**
+   → Sí: `Publicación` (1 registro por cada SKU dentro del bloque, ver `extracting-multiple-products-per-image`).
+   → No: seguí.
 
-Si hay 5 marcas distintas en una grilla, son 5 regulares. Si hay 5 productos de la misma marca en un bloque dedicado con banner compartido, es una publicación.
+2. **¿Tiene precio o porcentaje de descuento visible?**
+   → No: `Publicidad`.
+   → Sí: seguí.
 
-### Marcar todo lo grande como "destacada"
+3. **¿Ocupa notablemente más espacio que los productos vecinos?**
+   → Sí: `Destacado`.
+   → No: `Regular`.
 
-Solo es destacada si es más grande que sus vecinos en la misma página. Si toda la página tiene productos grandes, son todos regulares. La clasificación de "destacada" es relativa al contexto de la página.
+## Casos especiales
 
-### Confundir un agrupador no-marca con "publicacion"
+### Producto en bloque de un fabricante pero con precio individual
 
-El tipo `publicacion` aplica cuando el agrupador es **una marca**. No todos los banners que agrupan productos son marca. Existen otros agrupadores que pueden aparecer en un catálogo:
+Si un bloque tiene marca de fabricante pero cada SKU dentro tiene su propio precio listado, **sigue siendo Publicación** (es la presentación lo que importa, no si hay precio individual).
 
-- Un fabricante que comercializa múltiples marcas distintas
-- Un evento o campaña (ej: aniversario, temporada, feria)
-- Un proveedor o alianza comercial
-- Una categoría temática (ej: "lo más pedido de la semana")
+### Bloque "Combiná" (8X6 estilo Coca Cola)
 
-Cuando el agrupador **no es una marca** y los productos dentro tienen **precios individuales propios**, cada producto se clasifica según su propio tratamiento visual (generalmente `regular`, o `destacada` si ocupa más espacio que otros en la misma página). El agrupador actúa como contexto editorial, no como marca cerrada.
+Cuando el folder muestra un bloque tipo "Combiná 8X6" con 4 latas de gaseosa (Coca, Coca Sin Azúcar, Fanta, Sprite), todos del mismo fabricante (Coca Cola Co.) y con la misma promoción → `Publicación` para los 4 SKUs.
 
-La distinción operativa:
+Ver también `detecting-combos` y `extracting-multiple-products-per-image`.
 
-- Si todos los productos del bloque pertenecen a la misma marca comercial → `publicacion`
-- Si el bloque agrupa productos de marcas distintas (aunque compartan fabricante o campaña) → clasificar cada producto individualmente (`regular` o `destacada` según el caso)
+### Producto sin precio en una grilla normal
+
+Si en una grilla regular hay un producto sin precio (caso raro pero ocurre), clasificarlo como `Publicidad` aunque visualmente esté en formato Regular. **El criterio "sin precios" gana sobre el criterio visual de tamaño.**
+
+### Múltiples destacados en una página
+
+Una página puede tener varios productos clasificados como `Destacado`. No hay límite. Cada uno se evalúa por su tamaño relativo a los Regulars de la misma página.
+
+## Diferencia con tipo_promocion
+
+`tipo_oferta` describe **cómo se ve** el producto. `tipo_promocion_oferta` describe **qué descuento tiene**.
+
+Un producto puede ser `Destacado` (imagen grande) y tener `tipo_promocion_oferta = "3X2"` al mismo tiempo. Son dimensiones independientes.
+
+## Notas de diseño
+
+### Por qué pasamos de 3 a 4 valores
+
+En la versión anterior teníamos `Regular / Destacada / Publicación` (3 valores) y mezclábamos `Publicidad` con `Publicación`. David clarificó en la última iteración que son **4 valores distintos** y que `Publicidad` (sin precios) ≠ `Publicación` (bloque de fabricante con datos).
+
+### Por qué el campo se llama tipo_oferta y no tipo_imagen
+
+Es el nombre que usa David en el Excel canónico. En la versión anterior usábamos `tipo_imagen`. Cambio de nombre, mismo concepto.
+
+### Por qué los nombres mezclan masculino y femenino
+
+`Regular`, `Destacado`, `Publicidad`, `Publicación` — vienen así de los Excel de David. No normalizar el género; usar exactamente esos strings.

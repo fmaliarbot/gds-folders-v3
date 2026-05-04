@@ -1,6 +1,6 @@
 ---
 name: building-sku-description
-description: Construye la descripción canónica del SKU según las convenciones de GDSnet, siguiendo uno de los tres patrones estándar (específico con medida, genérico por marca, o "TODOS/TODAS") y aplicando abreviaciones sistemáticas para palabras frecuentes. Usar siempre que el agente genere el campo `descripcion` de un producto extraído, ya que la consistencia del SKU es clave para el cruce con la base maestra de GDSnet.
+description: Construye la descripción canónica del SKU para el campo `descripcion` del schema, siguiendo uno de los tres patrones estándar (específico con medida, genérico por marca, o "TODOS/TODAS") y aplicando abreviaciones sistemáticas. Genera valores como "ALMA MORA MALBEC 750CC" o "MENTOS CARAMELOS 29,5G". Usar siempre que el agente genere el campo `descripcion` de un producto extraído. La consistencia del SKU es clave para que el pipeline de integración pueda matchear contra la base maestra de GDSnet.
 ---
 
 # Construcción del SKU (campo `descripcion`)
@@ -219,7 +219,7 @@ Si el folder tiene una palabra común para la que no hay abreviación en el dicc
 2. La abreviación sea **obvia e inequívoca** (ej: "Reforzado" → "REF", "Protección" → "PROT")
 3. La abreviación sea consistente con el estilo del diccionario (prefijos de 3-5 letras, sin vocales al final cuando se puede evitar)
 
-Cuando el agente abrevie algo no listado, agregar en `comentarios` una nota tipo `abreviación ad-hoc: "X" -> "Y"` para que el revisor humano pueda validar o corregir.
+Cuando el agente abrevie algo no listado, agregar `LOW_CONFIDENCE` a `review_reasons` del producto para que el revisor humano pueda validar o corregir.
 
 ## Reglas de formato generales
 
@@ -247,6 +247,7 @@ Independientemente del patrón:
 
 Esta skill afecta solo el campo `descripcion`. Los campos relacionados siguen sus propias reglas:
 
-- **`marca`:** en mayúsculas, con acentos preservados según cómo GDSnet registra (ver la base maestra). Se mantiene separada aunque aparezca al inicio del `descripcion`.
-- **`medida` y `u_medida`:** campos separados en el output (ej: `500` y `ML`). La combinación `500ML` aparece al final del `descripcion` cuando aplica Patrón A.
-- **`tipo_variedad`:** si el producto tiene variedades visibles, la skill `handling-closed-brand-categories` decide si se elige una concreta para la descripción o se deja genérica.
+- **`marca`:** en mayúsculas, sin acentos. Se mantiene separada aunque aparezca al inicio de `descripcion`.
+- **`medida` y `u_medida`:** campos separados en el output (ej: `500` y `ML`). La combinación `500ML` aparece al final de `descripcion` cuando aplica Patrón A.
+- **`descripcion_literal`:** este campo guarda el texto del folder sin transformar. `descripcion` (este campo) es la versión canónica formateada.
+- **`tipo_variedad`:** si el producto tiene variedades visibles, ver `extracting-multiple-products-per-image` para decidir si va 1 registro con `tipo_variedad` o N registros separados.
