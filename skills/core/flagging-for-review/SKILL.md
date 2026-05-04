@@ -42,7 +42,7 @@ Lista cerrada. SCREAMING_SNAKE_CASE.
 
 ### CATEGORY_NOT_DEFINED
 
-**Cuándo aplicar:** no se puede asignar la categoría canónica del producto contra `references/categorias-contratadas.md`. Casos típicos:
+**Cuándo aplicar:** no se puede asignar la categoría canónica del producto contra la lista de la skill `categorias-canonicas`. Casos típicos:
 - El producto cae fuera de la lista de 74 categorías contratadas (ej: BARRAS DE CEREAL, LECHE LARGA VIDA).
 - La categoría es ambigua entre dos opciones de la lista canónica.
 - El producto cae en una exclusión explícita (columna NO INCLUYE).
@@ -58,7 +58,7 @@ Lista cerrada. SCREAMING_SNAKE_CASE.
 
 ### MACRO_CATEGORY_UNMAPPED
 
-**Cuándo aplicar:** el agente vio una macro-categoría en un footer de bloque promocional (ej: "EN ENCURTIDOS Y ESPECIAS") y al revisar `references/categorias-contratadas.md` no encontró ninguna categoría canónica que corresponda razonablemente.
+**Cuándo aplicar:** el agente vio una macro-categoría en un footer de bloque promocional (ej: "EN ENCURTIDOS Y ESPECIAS") y al revisar la lista de la skill `categorias-canonicas` no encontró ninguna categoría canónica que corresponda razonablemente.
 
 **Acción típica:** revisor decide si esa macro corresponde a una categoría canónica que el agente no detectó, o si simplemente no se carga porque GDS no la tiene contratada.
 

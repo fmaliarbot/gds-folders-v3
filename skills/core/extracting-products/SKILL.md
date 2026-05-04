@@ -25,7 +25,7 @@ No uses conocimiento general sobre productos argentinos para completar campos. N
 
 La regla de "no inventar" aplica a **datos observables en la imagen**. No aplica a decisiones de matching contra listas canónicas provistas por el cliente, que son reglas de negocio explícitas.
 
-El campo `categoria` se matchea contra `references/categorias-contratadas.md` (74 categorías canónicas) y se asigna el valor literal de esa lista. Si el match no es claro, el comportamiento sigue siendo el mismo: `null` + `CATEGORY_NOT_DEFINED` en `review_reasons`.
+El campo `categoria` se matchea contra la lista canónica provista por la skill `categorias-canonicas` (74 categorías) y se asigna el valor literal de esa lista. Si el match no es claro, el comportamiento sigue siendo el mismo: `null` + `CATEGORY_NOT_DEFINED` en `review_reasons`.
 
 ## Schema canónico de campos
 
@@ -33,10 +33,10 @@ Cada producto debe producirse con exactamente estos campos. El orden no importa 
 
 ### 1. categoria
 
-**El campo `categoria` debe ser literalmente igual a uno de los valores de `references/categorias-contratadas.md`.** Sin excepciones.
+**El campo `categoria` debe ser literalmente igual a uno de los valores listados por la skill `categorias-canonicas`.** Sin excepciones.
 
 **Cómo asignarla:**
-1. Mirar el producto y matchearlo contra la columna `CATEGORIA` del archivo de referencias.
+1. Cargar la skill `categorias-canonicas` y mirar la tabla de la columna `CATEGORIA`.
 2. Copiar el valor literal de la lista — respetar mayúsculas, acentos, y typos del archivo (`LIUSTRAMUEBLES`, `PREMEZCALAS DULCES`, `CAFÉ` con tilde, etc.).
 3. Revisar la columna `NO INCLUYE` para descartar matches erróneos (ej: chocolate para taza NO va a CHOCOLATES; vino Patero NO va a VINOS).
 

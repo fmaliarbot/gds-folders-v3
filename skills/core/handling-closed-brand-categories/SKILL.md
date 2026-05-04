@@ -1,6 +1,6 @@
 ---
 name: handling-closed-brand-categories
-description: Maneja casos donde la oferta del catálogo aplica a una categoría cerrada de marca o de tipo de producto en lugar de a un SKU específico. Cubre 5 patrones: una marca con una categoría, una categoría con varias marcas, categoría sin marca específica, marca cerrada sin categoría informada, y bloques promocionales con footer macro-categoría que requieren descomposición. Genera registros con SKU genérico (marca = "VARIAS MARCAS") cuando corresponde y desagrega macros del folder en categorías canónicas usando references/categorias-contratadas.md.
+description: Maneja casos donde la oferta del catálogo aplica a una categoría cerrada de marca o de tipo de producto en lugar de a un SKU específico. Cubre 5 patrones: una marca con una categoría, una categoría con varias marcas, categoría sin marca específica, marca cerrada sin categoría informada, y bloques promocionales con footer macro-categoría que requieren descomposición. Genera registros con SKU genérico (marca = "VARIAS MARCAS") cuando corresponde y desagrega macros del folder en categorías canónicas usando la skill `categorias-canonicas`.
 ---
 
 # Manejo de Categorías Cerradas
@@ -135,12 +135,12 @@ Para un bloque con N marcas listadas y un footer macro:
 Por cada marca dentro del bloque, generar 1 registro siguiendo el patrón habitual:
 - `marca: <marca>`
 - `descripcion: <marca> + tipo de producto leído de la imagen` (ver `building-sku-description`)
-- `categoria: <categoria canónica del producto>` (matcheada contra `references/categorias-contratadas.md`)
+- `categoria: <categoria canónica del producto>` (matcheada contra la lista de la skill `categorias-canonicas`)
 - Promociones del bloque aplicadas a `tipo_promocion_oferta` (y a `tipo_promocion_tarjeta_fidelidad` cuando corresponda).
 
 #### Paso 2 — Descomponer la macro-categoría del footer
 
-Mirá la macro-categoría del footer (ej: "EN GOLOSINAS"). Buscá en `references/categorias-contratadas.md` qué categorías canónicas razonablemente caen dentro de esa macro.
+Mirá la macro-categoría del footer (ej: "EN GOLOSINAS"). Buscá en la lista de la skill `categorias-canonicas` qué categorías canónicas razonablemente caen dentro de esa macro.
 
 **Ejemplos de razonamiento:**
 
@@ -163,7 +163,7 @@ Por cada categoría canónica encontrada en el match, generar 1 registro:
 
 #### Paso 3 — Si la macro no matchea con ninguna categoría canónica
 
-Si después de revisar la macro contra `references/categorias-contratadas.md` **ninguna** categoría canónica matchea con razonable certeza, generar **1 solo registro** flageado para revisión humana:
+Si después de revisar la macro contra la lista de la skill `categorias-canonicas` **ninguna** categoría canónica matchea con razonable certeza, generar **1 solo registro** flageado para revisión humana:
 
 ```json
 {
@@ -234,7 +234,7 @@ David lo escribió textualmente en el documento de ajustes: *"se genera un sku g
 
 ### Por qué descomponemos macro-categorías en el Caso E
 
-Las macro-categorías del folder ("GOLOSINAS", "VINOS FINOS, CHAMPAÑAS Y ESPUMANTES") son etiquetas comerciales del folder, no categorías canónicas de GDSnet. La base maestra trabaja con las 74 categorías de `references/categorias-contratadas.md`. Si el agente carga "GOLOSINAS" como categoría, ese registro queda huérfano porque "GOLOSINAS" no existe en el sistema de GDS.
+Las macro-categorías del folder ("GOLOSINAS", "VINOS FINOS, CHAMPAÑAS Y ESPUMANTES") son etiquetas comerciales del folder, no categorías canónicas de GDSnet. La base maestra trabaja con las 74 categorías que provee la skill `categorias-canonicas`. Si el agente carga "GOLOSINAS" como categoría, ese registro queda huérfano porque "GOLOSINAS" no existe en el sistema de GDS.
 
 ### Por qué el agente decide el match macro→categorías sin tabla pre-cargada
 

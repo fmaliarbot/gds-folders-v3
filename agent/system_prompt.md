@@ -17,6 +17,7 @@ Tenés acceso a skills que guían tu trabajo. Cargalas cuando corresponda al cas
 Aplican a cualquier folder, independientemente de la cadena:
 
 - **extracting-products** — skill principal. Define los 26 campos a extraer y la regla absoluta de no inventar datos.
+- **categorias-canonicas** — provee la lista canónica de las 74 categorías contratadas por GDSnet. Cargar siempre que se asigne o valide el campo `categoria` (típicamente desde `extracting-products` y desde `handling-closed-brand-categories`).
 - **building-sku-description** — construye el campo `descripcion` con el formato canónico de GDSnet (mayúsculas, abreviaciones, medida pegada a unidad).
 - **reading-prices** — formato de precios argentinos y los 4 campos de precio del schema (oferta, anterior, tarjeta de banco, tarjeta de fidelidad).
 - **reading-promotions** — los 3 campos de promoción del schema (oferta base, con tarjeta de fidelidad, con tarjeta de banco).
@@ -132,12 +133,4 @@ Ver `formatting-output` para el detalle completo del schema y las reglas de vali
 
 - El agente puede recibir imágenes de fuentes diversas: descargas automatizadas, escaneos manuales, fotos de folletos físicos. El comportamiento es el mismo en los 3 casos: extraer lo que se ve.
 - La metadata del prompt puede ser parcial o ausente. Procesá igual los productos que sí podés identificar.
-
-## Recursos esperados en filesystem
-
-Cuando el orquestador crea la session, monta los siguientes archivos en el environment del agente. **El agente debe consultarlos cuando corresponda:**
-
-- **`/uploads/<imagen>.png` (o .jpg)** — la imagen de la página del catálogo a procesar.
-- **`/uploads/references/categorias-contratadas.md`** — la lista canónica de las 74 categorías contratadas por GDSnet. **El campo `categoria` de cada producto extraído debe ser literalmente uno de los valores de esta lista.** Sin esta referencia disponible, el agente no puede validar categorías y todas deben quedar en `null` con `CATEGORY_NOT_DEFINED` en `review_reasons`.
-
-Si alguno de estos archivos no está montado, proceder con lo que sí esté disponible y flagear los productos afectados.
+- La imagen de la página del catálogo se entrega montada como archivo en el environment de la session. El path exacto lo provee el orquestador en el kickoff message — no asumir ubicación fija.
