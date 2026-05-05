@@ -9,6 +9,8 @@ description: Lee e interpreta precios en formato argentino desde catálogos y lo
 
 Los catálogos argentinos pueden mostrar hasta **4 precios distintos** para un mismo producto: precio anterior (regular), precio oferta (vigente), precio con tarjeta de banco, precio con tarjeta de fidelidad. Esta skill enseña cómo identificar cuál es cuál, leerlos correctamente en formato argentino, y cuándo dejar `null`.
 
+Las **reglas globales** del agente (no inventar, ante la duda `null` con flag) están en `extracting-products`. Esta skill las extiende con detalle específico de los campos de precio.
+
 ## Formato de precios argentinos
 
 - Separador de miles: punto (`.`)
@@ -122,12 +124,6 @@ Ver la skill `detecting-combos` para la lógica completa. Resumen:
 - Precio total del combo → `precio_oferta` del Principal.
 - Secundario → `precio_oferta: 0` (no `null`).
 - `precio_anterior`: `null` en ambos (no existe un "precio regular" de un combo).
-
-## Principio general
-
-Ante la duda, `null` y flag de revisión.
-
-Es mejor un campo vacío con flag de revisión que un número inventado que pase silenciosamente como válido. El cruce contra la base maestra de GDSnet y la revisión humana pueden completar lo faltante — un número incorrecto sin flag es mucho más difícil de detectar y corregir después.
 
 ## Notas de diseño
 

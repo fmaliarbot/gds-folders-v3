@@ -14,6 +14,8 @@ Las promociones argentinas pueden tener hasta **3 capas simultáneas**:
 
 Antes mezclábamos todo en un solo campo. Ahora cada capa va a su propio campo: `tipo_promocion_oferta`, `tipo_promocion_tarjeta_fidelidad`, `tipo_promocion_tarjeta_bancos`.
 
+Las **reglas globales** del agente (no inventar, ante la duda `null` con flag) están en `extracting-products`. Esta skill las extiende con detalle específico de los campos de promoción.
+
 ## Identificación de cada dimensión
 
 ### Promoción base (tipo_promocion_oferta)

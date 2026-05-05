@@ -107,7 +107,7 @@ David lo aclaró textualmente: *"sólo se toman aquellos que forman parte de las
 
 **Cuándo aplica esto:**
 - En la PoC actual, no tenemos la lista de categorías contratadas por cadena. Por defecto, **registrar siempre los dos productos del combo** (Principal y Secundario), y dejar que el pipeline de integración filtre downstream.
-- Cuando esté disponible un mapeo de categorías por cadena (extensión futura de la skill `categorias-canonicas`), aplicar el filtro acá.
+- Cuando esté disponible `references/categorias-contratadas.md` con el mapeo por cadena, aplicar el filtro acá.
 
 ## Caso especial: Combos con más de 2 productos
 

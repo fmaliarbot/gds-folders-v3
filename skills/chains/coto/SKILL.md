@@ -1,41 +1,50 @@
 ---
 name: coto
-description: Maneja las particularidades del catálogo de COTO, la cadena de supermercados e hipermercados argentina. Usar siempre que se procese un folder de COTO. Incluye datos fijos de la cadena, reconocimiento de la tarjeta de fidelidad COMUNIDAD COTO, descuentos típicos asociados a esa tarjeta, mapeo de zonas canónicas, y convenciones de formato de SKU específicas de la cadena.
+description: Maneja las particularidades operativas del agente cuando procesa una página de un folder de COTO. Cubre el reconocimiento de la tarjeta de fidelidad COMUNIDAD COTO con su regla crítica (por SKU, no por bloque), descuentos típicos asociados, tipos de oferta y promoción frecuentes, y casos especiales conocidos (combinables 8X6, frescos por kg, códigos internos). NO incluye datos de metadata del folder (cadena, zona, fechas, tipo de folder) — esos campos son responsabilidad del orquestador o del Agent 1, no del Agent 2.
 ---
 
-# Procesamiento de catálogos de COTO
+# Procesamiento de catálogos COTO — Agent 2
 
 ## Cuándo usar esta skill
 
-Activar esta skill cuando se está procesando cualquier folder de COTO. Provee el contexto específico de la cadena para completar correctamente los campos fijos y resolver las particularidades de naming, formato y promociones.
-
-## Datos fijos de la cadena
-
-Cuando la metadata indica COTO, los siguientes campos se completan con valores canónicos:
-
-| Campo | Valor |
-|---|---|
-| `nombre_cadena` | `"COTO"` |
-| `nombre_publicador` | `"COTO"` (cuando es folder propio de la cadena) |
-| `tipo_publicador` | `"Cadena"` |
-| `canal` | `"Supermercado"` |
-
-**Caso especial:** cuando el folder es una inserción del diario Clarín (folder "Super Fin de Semana" o similar), los datos cambian:
-
-| Campo | Valor |
-|---|---|
-| `nombre_publicador` | `"CLARIN"` |
-| `nombre_cadena` | `"COTO"` |
-| `tipo_publicador` | `"Diario"` |
-| `canal` | `"Supermercado"` |
+Activar cuando el orquestador indica que la imagen procesada pertenece a un folder de COTO. Esta skill complementa las reglas globales de `extracting-products` con el contexto específico de cómo COTO presenta sus ofertas.
 
 ## Tarjeta de fidelidad: COMUNIDAD COTO
 
-COTO tiene una tarjeta de fidelidad propia llamada **Comunidad COTO**. Cuando una promoción aplica con esta tarjeta, completar el campo `tarjeta_fidelidad` con el valor canónico `"COMUNIDAD COTO"` (mayúsculas, sin acentos).
+COTO tiene una tarjeta de fidelidad propia llamada **Comunidad COTO**. El valor canónico para `tarjeta_fidelidad` es `"COMUNIDAD COTO"` (mayúsculas, sin acentos).
+
+### Regla crítica — por SKU, no por bloque
+
+Esta es la regla más importante de esta skill. La regla 4 de `extracting-products` (tarjetas por SKU) aplica acá con un ejemplo concreto que el agente debe internalizar.
+
+**El campo `tarjeta_fidelidad: "COMUNIDAD COTO"` se completa SOLO cuando el badge gráfico de Comunidad COTO aparece directamente sobre o junto al SKU concreto.**
+
+#### EJEMPLO CRÍTICO — caso real página 8 COTO Super Finde
+
+Este es un caso real donde el agente alucinó previamente. Estudialo bien.
+
+En el bloque "40% DTO en productos de las siguientes marcas" hay 6 cervezas listadas: **ANTARES, GROLSCH, BLUE MOON, WARSTEINER, KUNSTMANN, SALTA CAUTIVA**.
+
+El badge "10% adicional Comunidad COTO" aparece **SOLO sobre 4 de esas 6**: GROLSCH, BLUE MOON, WARSTEINER, KUNSTMANN.
+
+**ANTARES y SALTA CAUTIVA NO tienen el badge** en la imagen — están en el mismo bloque pero sin el indicador individual.
+
+**Comportamiento correcto:**
+
+| Marca | tarjeta_fidelidad | tipo_promocion_tarjeta_fidelidad |
+|---|---|---|
+| ANTARES | `null` | `null` |
+| GROLSCH | `"COMUNIDAD COTO"` | `"10%DTO"` |
+| BLUE MOON | `"COMUNIDAD COTO"` | `"10%DTO"` |
+| WARSTEINER | `"COMUNIDAD COTO"` | `"10%DTO"` |
+| KUNSTMANN | `"COMUNIDAD COTO"` | `"10%DTO"` |
+| **SALTA CAUTIVA** | **`null`** ← caso clásico de alucinación | **`null`** |
+
+**Pregunta de control que el agente debe hacerse para cada SKU:** "¿Veo el badge 'Comunidad COTO' o el ícono `10%` directamente sobre/al lado del logo de esta marca específica?" Si la respuesta es no, `tarjeta_fidelidad: null` aunque marcas vecinas sí lo tengan.
 
 ### Patrones de reconocimiento
 
-La tarjeta puede aparecer en el catálogo con distintas variaciones textuales. Identificar como COMUNIDAD COTO cualquiera de:
+La tarjeta puede aparecer con distintas variaciones textuales — todas se mapean al valor canónico `"COMUNIDAD COTO"`:
 
 - "Comunidad COTO" (forma canónica)
 - "comunidad coto" (minúsculas)
@@ -43,37 +52,15 @@ La tarjeta puede aparecer en el catálogo con distintas variaciones textuales. I
 - Logo o badge de Comunidad COTO
 - Frases tipo "con Comunidad COTO", "exclusivo Comunidad", "precio Comunidad"
 
-En todos los casos, el valor canónico a registrar es `"COMUNIDAD COTO"`.
-
-### Regla crítica: Comunidad COTO es por SKU, no por bloque
-
-**El campo `tarjeta_fidelidad: "COMUNIDAD COTO"` se completa SOLO cuando el badge gráfico de Comunidad COTO aparece explícitamente sobre o junto a ese producto específico.**
-
-- ❌ NO asumir que aplica a todos los SKUs de un bloque promocional solo porque algunos lo tienen.
-- ❌ NO asumir que aplica por ser un folder de COTO.
-- ❌ NO asumir que aplica a una marca por estar en la misma sección de cervezas/aperitivos/etc.
-- ✓ SOLO completar cuando el badge "10% adicional Comunidad COTO" (o equivalente) está visible **al lado o sobre el SKU concreto**.
-
-**Ejemplo concreto:** en un bloque de cervezas con 6 marcas (Antares, Grolsch, Blue Moon, Warsteiner, Kunstmann, Salta Cautiva) donde solo 4 tienen el badge visible (Grolsch, Blue Moon, Warsteiner, Kunstmann):
-
-- Antares → `tarjeta_fidelidad: null`
-- Grolsch → `tarjeta_fidelidad: "COMUNIDAD COTO"`
-- Blue Moon → `tarjeta_fidelidad: "COMUNIDAD COTO"`
-- Warsteiner → `tarjeta_fidelidad: "COMUNIDAD COTO"`
-- Kunstmann → `tarjeta_fidelidad: "COMUNIDAD COTO"`
-- Salta Cautiva → `tarjeta_fidelidad: null`
-
-La presencia del badge en algunos SKUs del bloque NO implica que aplique a todos. Esto es la regla fundamental de "no inventar datos" aplicada específicamente a la tarjeta de fidelidad.
-
 ### Descuentos típicos con Comunidad COTO
 
-Los folders de COTO frecuentemente muestran un descuento adicional con la tarjeta de fidelidad. Patrones observados:
+Patrones observados frecuentes (siempre que el badge sea visible para el SKU):
 
 - Promoción base + 5% o 10% adicional con Comunidad COTO.
 - Cervezas y aperitivos suelen tener +5%/10% con Comunidad COTO.
 - Champagne suele tener 40% DTO solo con Comunidad COTO (sin promo base).
 
-**Cómo registrar:**
+**Cómo registrar (cuando el badge ES visible para el SKU):**
 
 ```json
 {
@@ -83,51 +70,16 @@ Los folders de COTO frecuentemente muestran un descuento adicional con la tarjet
 }
 ```
 
-**Importante:** registrar SOLO si la imagen muestra el badge **directamente sobre o junto al SKU específico**. **No asumir** que aplica a todos los productos del folder por ser COTO. **No asumir** que aplica a todos los SKUs de un bloque promocional solo porque algunos vecinos lo tienen visible. Ver "Regla crítica: Comunidad COTO es por SKU, no por bloque" arriba.
+## Tipos de oferta en folders de COTO
 
-## Zona de cobertura
-
-COTO publica folders por zona. Las zonas canónicas (ver `references/zonas-geograficas.md`) más frecuentes en COTO:
-
-- `"CAP Y GBA"`
-- `"ESTE"`
-- `"OESTE"`
-- `"SUR"`
-- `"CAP-GBA-ESTE-OESTE-SUR"` (cuando aplica a varias zonas)
-
-El folder Super Finde típicamente cubre: **CAP-GBA-ESTE-OESTE-SUR**.
-El folder Almacén y Bebidas típicamente cubre: **CAP-GBA-ESTE-OESTE-SUR**.
-
-## URLs de catálogos
-
-- Catálogos semanales: `https://coto.com.ar/images/catalogos/revistas/semanal-alimentos/index_mobile.asp`
-- Otros formatos: el sitio principal de COTO puede tener variaciones según evento.
-
-## Convención de formato de SKU
-
-COTO sigue convenciones específicas que el equipo de GDSnet usa al cargar manualmente. El agente genera la descripción canónica completa siguiendo `building-sku-description`, y el pipeline de integración resuelve el match contra la base maestra.
-
-### Ejemplos observados
-
-| Descripción del folder | SKU canónico (agente) |
-|---|---|
-| Cocinero Aceite Mezcla Soja y Girasol PET 900cc | `COCINERO MEZCLA PET 900CC` |
-| Morixe Harina Especial Para Pizzas 1kg | `MORIXE PIZZAS 1KG` |
-| Heineken Cerveza Porrón 330ml | `HEINEKEN 330ML` |
-| Coca Cola Zero 2,25L | `COCA COLA ZERO 2,25L` |
-
-## Tipos de oferta en catálogos de COTO
-
-Los folders de COTO usan los 4 tipos canónicos:
+Los folders de COTO usan los 4 tipos canónicos definidos en `classifying-ad-type`:
 
 - **Regular:** producto con foto y precio individual, tamaño estándar.
-- **Destacado:** producto con foto más grande, generalmente con borde o fondo especial. En COTO suele aparecer en cervezas en formato grande, gaseosas 2,25L, lácteos destacados, frutas/verduras estrella.
+- **Destacado:** producto con foto más grande, generalmente con borde o fondo especial. En COTO suele aparecer en cervezas grandes, gaseosas 2,25L, lácteos destacados, frutas/verduras estrella.
 - **Publicidad:** banner o imagen sin precios.
-- **Publicación:** grupo de productos del mismo fabricante (típico en cervezas, gaseosas, marcas de lácteos).
+- **Publicación:** grupo de productos del mismo fabricante con promo común (típico en cervezas, gaseosas, marcas de lácteos).
 
-## Tipos de promoción frecuentes
-
-Las promociones más comunes en COTO:
+## Tipos de promoción frecuentes en COTO
 
 - Descuentos porcentuales: `25%DTO`, `35%DTO`, `40%DTO`
 - Multi-unidad: `2X1`, `3X2`, `4X3`
@@ -136,21 +88,13 @@ Las promociones más comunes en COTO:
 
 ## Casos especiales conocidos en COTO
 
-### Categorías cerradas con banner
-
-COTO frecuentemente presenta familias de productos (vinos, cervezas, lácteos) como un banner de marca con varios SKUs agrupados.
-
-- Si el banner es de un fabricante: `tipo_oferta: "Publicación"`.
-- Si es un banner de categoría sin fabricante claro: ver `handling-closed-brand-categories`.
-- No inventar precios para cada SKU individual — dejar `precio_oferta` en `null` y registrar `tipo_promocion_oferta` si está visible.
-
-### Bloque "Combiná" (Coca Cola)
+### Bloque "Combiná" (Coca Cola Co.)
 
 Los folders de COTO frecuentemente tienen bloques tipo "Combiná 8X6" con 4 latas de gaseosa de 220ml (Coca Cola, Coca Sin Azúcar, Fanta, Sprite). Ver `extracting-multiple-products-per-image` para la regla — son **líneas distintas** (4 registros), no variedades.
 
 ### Frescos por kg (pollo, frutas, verduras)
 
-Frecuentemente aparecen en página 8 (almacén) con precio por kg. La medida es variable (lo paga la balanza), entonces:
+Frecuentemente aparecen en página 8 (almacén) con precio por kg. La medida es variable (lo paga la balanza):
 
 - `medida`: `null`
 - `u_medida`: `"KG"`
@@ -161,4 +105,22 @@ COTO publica códigos internos cortos junto a algunos productos (ej: `Cod: 42210
 
 ### Publicidades de portada
 
-La primera página suele ser publicidad con productos pero sin precios. Se registran con `tipo_oferta: "Publicidad"` y los 4 campos de precio en `null`. Si hay un texto de promo (ej: "2X1"), igual se registra en `tipo_promocion_oferta`.
+La primera página suele ser publicidad con productos pero sin precios. Se registran con `tipo_oferta: "Publicidad"` y los 4 campos de precio en `null`. Si hay un texto de promo (ej: "2X1"), se registra en `tipo_promocion_oferta`.
+
+### Categorías cerradas con banner
+
+COTO frecuentemente presenta familias de productos (vinos, cervezas, lácteos) como un banner de marca con varios SKUs agrupados.
+
+- Si el banner es de un fabricante: `tipo_oferta: "Publicación"`.
+- Si es un banner de categoría sin fabricante claro: ver `handling-closed-brand-categories`.
+- No inventar precios para cada SKU individual — dejar `precio_oferta` en `null` y registrar `tipo_promocion_oferta` si está visible.
+
+## Notas de diseño
+
+### Por qué esta skill ya no tiene metadata de cadena
+
+En versiones anteriores incluía `nombre_cadena: "COTO"`, `tipo_publicador: "Cadena"`, datos de zona, URLs, etc. Esos campos son **metadata del folder** y no salen en el output del Agent 2 (que solo extrae productos por página). La metadata es responsabilidad del orquestador o de un futuro Agent 1 de descarga. Esta skill se enfoca solo en lo que el agente realmente decide al procesar productos.
+
+### Por qué la regla del badge se repite acá si ya está en `extracting-products`
+
+La regla está enunciada en `extracting-products` (regla 4), pero el caso COTO con su badge específico de Comunidad COTO es el patrón donde más frecuentemente el agente falla. La redundancia es defensiva — el ejemplo crítico de las 6 cervezas es lo que evita la regresión Salta Cautiva.
