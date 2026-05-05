@@ -45,6 +45,26 @@ La tarjeta puede aparecer en el catálogo con distintas variaciones textuales. I
 
 En todos los casos, el valor canónico a registrar es `"COMUNIDAD COTO"`.
 
+### Regla crítica: Comunidad COTO es por SKU, no por bloque
+
+**El campo `tarjeta_fidelidad: "COMUNIDAD COTO"` se completa SOLO cuando el badge gráfico de Comunidad COTO aparece explícitamente sobre o junto a ese producto específico.**
+
+- ❌ NO asumir que aplica a todos los SKUs de un bloque promocional solo porque algunos lo tienen.
+- ❌ NO asumir que aplica por ser un folder de COTO.
+- ❌ NO asumir que aplica a una marca por estar en la misma sección de cervezas/aperitivos/etc.
+- ✓ SOLO completar cuando el badge "10% adicional Comunidad COTO" (o equivalente) está visible **al lado o sobre el SKU concreto**.
+
+**Ejemplo concreto:** en un bloque de cervezas con 6 marcas (Antares, Grolsch, Blue Moon, Warsteiner, Kunstmann, Salta Cautiva) donde solo 4 tienen el badge visible (Grolsch, Blue Moon, Warsteiner, Kunstmann):
+
+- Antares → `tarjeta_fidelidad: null`
+- Grolsch → `tarjeta_fidelidad: "COMUNIDAD COTO"`
+- Blue Moon → `tarjeta_fidelidad: "COMUNIDAD COTO"`
+- Warsteiner → `tarjeta_fidelidad: "COMUNIDAD COTO"`
+- Kunstmann → `tarjeta_fidelidad: "COMUNIDAD COTO"`
+- Salta Cautiva → `tarjeta_fidelidad: null`
+
+La presencia del badge en algunos SKUs del bloque NO implica que aplique a todos. Esto es la regla fundamental de "no inventar datos" aplicada específicamente a la tarjeta de fidelidad.
+
 ### Descuentos típicos con Comunidad COTO
 
 Los folders de COTO frecuentemente muestran un descuento adicional con la tarjeta de fidelidad. Patrones observados:
@@ -63,7 +83,7 @@ Los folders de COTO frecuentemente muestran un descuento adicional con la tarjet
 }
 ```
 
-**Importante:** registrar SOLO si la imagen lo muestra explícito para ese producto. **No asumir** que aplica a todos los productos del folder por ser COTO.
+**Importante:** registrar SOLO si la imagen muestra el badge **directamente sobre o junto al SKU específico**. **No asumir** que aplica a todos los productos del folder por ser COTO. **No asumir** que aplica a todos los SKUs de un bloque promocional solo porque algunos vecinos lo tienen visible. Ver "Regla crítica: Comunidad COTO es por SKU, no por bloque" arriba.
 
 ## Zona de cobertura
 

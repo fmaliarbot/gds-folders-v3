@@ -25,7 +25,7 @@ No uses conocimiento general sobre productos argentinos para completar campos. N
 
 La regla de "no inventar" aplica a **datos observables en la imagen**. No aplica a decisiones de matching contra listas canónicas provistas por el cliente, que son reglas de negocio explícitas.
 
-El campo `categoria` se matchea contra la lista canónica provista por la skill `categorias-canonicas` (74 categorías) y se asigna el valor literal de esa lista. Si el match no es claro, el comportamiento sigue siendo el mismo: `null` + `CATEGORY_NOT_DEFINED` en `review_reasons`.
+El campo `categoria` se matchea contra `references/categorias-contratadas.md` (74 categorías canónicas) y se asigna el valor literal de esa lista. Si el match no es claro, el comportamiento sigue siendo el mismo: `null` + `CATEGORY_NOT_DEFINED` en `review_reasons`.
 
 ## Schema canónico de campos
 
@@ -33,10 +33,10 @@ Cada producto debe producirse con exactamente estos campos. El orden no importa 
 
 ### 1. categoria
 
-**El campo `categoria` debe ser literalmente igual a uno de los valores listados por la skill `categorias-canonicas`.** Sin excepciones.
+**El campo `categoria` debe ser literalmente igual a uno de los valores de `references/categorias-contratadas.md`.** Sin excepciones.
 
 **Cómo asignarla:**
-1. Cargar la skill `categorias-canonicas` y mirar la tabla de la columna `CATEGORIA`.
+1. Mirar el producto y matchearlo contra la columna `CATEGORIA` del archivo de referencias.
 2. Copiar el valor literal de la lista — respetar mayúsculas, acentos, y typos del archivo (`LIUSTRAMUEBLES`, `PREMEZCALAS DULCES`, `CAFÉ` con tilde, etc.).
 3. Revisar la columna `NO INCLUYE` para descartar matches erróneos (ej: chocolate para taza NO va a CHOCOLATES; vino Patero NO va a VINOS).
 
@@ -157,11 +157,26 @@ Si es secundario de combo: descripción del principal. En cualquier otro caso: `
 
 ### 20. tarjeta_fidelidad
 
-Nombre de la tarjeta de fidelidad asociada (ej: `"COMUNIDAD COTO"`). Solo registrar si la imagen lo muestra explícito. Si no se ve: `null`.
+Nombre de la tarjeta de fidelidad asociada al producto (ej: `"COMUNIDAD COTO"`, `"MI CARREFOUR"`, `"CLUB DIA"`, `"CENCOPAY"`, `"MAXI VOUCHER"`).
+
+**Regla crítica — solo si el badge es visible para ese SKU específico:**
+
+- ✓ Completar SOLO si la imagen muestra el badge/logo de la tarjeta **directamente sobre o junto al SKU concreto**.
+- ❌ NO asumir que aplica a todos los SKUs de un bloque promocional porque algunos vecinos lo tienen.
+- ❌ NO asumir que aplica por ser folder de una cadena que tiene tarjeta (ej: COTO con Comunidad COTO).
+- ❌ NO asumir por proximidad visual al badge.
+
+La presencia del badge en otros SKUs del mismo bloque NO implica que aplique a todos. Si algunos productos lo tienen y otros no, eso es información significativa que el agente debe respetar literalmente.
+
+La skill específica de cadena (ej: `coto`) provee los nombres canónicos de las tarjetas de cada cadena. Si no se ve sobre el SKU concreto: `null`.
 
 ### 21. tarjeta_bancos
 
-Nombre de las tarjetas bancarias asociadas (ej: `"MERCADO PAGO"`, `"MODO"`). Si no se ve: `null`.
+Nombre de las tarjetas bancarias asociadas (ej: `"MERCADO PAGO"`, `"MODO"`).
+
+**Misma regla que `tarjeta_fidelidad`:** solo registrar si el logo de la tarjeta está visible directamente sobre o junto al SKU específico. No asumir por bloque, por cadena, ni por proximidad.
+
+Si no se ve: `null`.
 
 ### 22. tipo_variedad
 

@@ -1,6 +1,6 @@
 ---
 name: handling-closed-brand-categories
-description: Maneja casos donde la oferta del catálogo aplica a una categoría cerrada de marca o de tipo de producto en lugar de a un SKU específico. Cubre 5 patrones: una marca con una categoría, una categoría con varias marcas, categoría sin marca específica, marca cerrada sin categoría informada, y bloques promocionales con footer macro-categoría que requieren descomposición. Genera registros con SKU genérico (marca = "VARIAS MARCAS") cuando corresponde y desagrega macros del folder en categorías canónicas usando la skill `categorias-canonicas`.
+description: Maneja casos donde la oferta del catálogo aplica a una categoría cerrada de marca o de tipo de producto en lugar de a un SKU específico. Cubre 5 patrones: una marca con una categoría, una categoría con varias marcas, categoría sin marca específica, marca cerrada sin categoría informada, y bloques promocionales con footer macro-categoría que requieren descomposición. Genera registros con SKU genérico (marca = "VARIAS MARCAS") cuando corresponde y desagrega macros del folder en categorías canónicas usando references/categorias-contratadas.md.
 ---
 
 # Manejo de Categorías Cerradas
@@ -88,13 +88,22 @@ La oferta cubre una categoría amplia sin marca. Típico de mayoristas como Maxi
 {
   "categoria": "CHOCOLATES",
   "marca": "VARIAS MARCAS",
-  "descripcion": "CHOCOLATES TODOS",
+  "descripcion": "CHOCOLATES",
   "tipo_promocion_oferta": null,
   "tipo_promocion_tarjeta_fidelidad": "20%DTO",
   "tarjeta_fidelidad": "MAXI VOUCHER",
   ...
 }
 ```
+
+**Convención de descripción para registros con `marca: "VARIAS MARCAS"`:**
+
+El campo `descripcion` debe ser **literalmente el nombre de la categoría canónica**, sin prefijos ni sufijos artificiales.
+
+- ✓ Correcto: `"ALFAJORES"`, `"CARAMELOS"`, `"CHOCOLATES"`, `"SHAMPOO"`, `"VINOS"`, `"CHAMPAGNE"`
+- ✗ Incorrecto: `"V/M ALFAJORES"`, `"VARIAS MARCAS CARAMELOS"`, `"MULTI CHOCOLATES"`
+
+**Nunca usar prefijos como `V/M`, `VARIAS MARCAS`, `MULTI`, ni similares en el campo `descripcion`.** El indicador de "varias marcas" ya está en el campo `marca`. Duplicarlo en `descripcion` es ruido.
 
 ### Caso D: Una marca cerrada sin categoría informada (caso ESPADOL)
 
@@ -135,12 +144,12 @@ Para un bloque con N marcas listadas y un footer macro:
 Por cada marca dentro del bloque, generar 1 registro siguiendo el patrón habitual:
 - `marca: <marca>`
 - `descripcion: <marca> + tipo de producto leído de la imagen` (ver `building-sku-description`)
-- `categoria: <categoria canónica del producto>` (matcheada contra la lista de la skill `categorias-canonicas`)
+- `categoria: <categoria canónica del producto>` (matcheada contra `references/categorias-contratadas.md`)
 - Promociones del bloque aplicadas a `tipo_promocion_oferta` (y a `tipo_promocion_tarjeta_fidelidad` cuando corresponda).
 
 #### Paso 2 — Descomponer la macro-categoría del footer
 
-Mirá la macro-categoría del footer (ej: "EN GOLOSINAS"). Buscá en la lista de la skill `categorias-canonicas` qué categorías canónicas razonablemente caen dentro de esa macro.
+Mirá la macro-categoría del footer (ej: "EN GOLOSINAS"). Buscá en `references/categorias-contratadas.md` qué categorías canónicas razonablemente caen dentro de esa macro.
 
 **Ejemplos de razonamiento:**
 
@@ -155,15 +164,17 @@ Por cada categoría canónica encontrada en el match, generar 1 registro:
 {
   "categoria": "<CATEGORIA CANONICA>",
   "marca": "VARIAS MARCAS",
-  "descripcion": "<CATEGORIA CANONICA> TODOS",
+  "descripcion": "<CATEGORIA CANONICA>",
   "tipo_promocion_oferta": "<promo del bloque>",
   ...
 }
 ```
 
+**Importante:** el campo `descripcion` es literalmente el nombre de la categoría canónica. Sin prefijos (`V/M`, `MULTI`), sin sufijos (`TODOS`, `TODAS`). Si la categoría canónica es `ALFAJORES`, la descripción es `ALFAJORES`. La convención de cuándo agregar `TODOS` o `TODAS` es decisión de la capa de exportación a Excel/CSV, no del agente.
+
 #### Paso 3 — Si la macro no matchea con ninguna categoría canónica
 
-Si después de revisar la macro contra la lista de la skill `categorias-canonicas` **ninguna** categoría canónica matchea con razonable certeza, generar **1 solo registro** flageado para revisión humana:
+Si después de revisar la macro contra `references/categorias-contratadas.md` **ninguna** categoría canónica matchea con razonable certeza, generar **1 solo registro** flageado para revisión humana:
 
 ```json
 {
@@ -195,10 +206,10 @@ Si después de revisar la macro contra la lista de la skill `categorias-canonica
   // ... más marcas...
 
   // Paso 2 - desagregación de "EN GOLOSINAS":
-  {"marca": "VARIAS MARCAS", "categoria": "ALFAJORES", "descripcion": "ALFAJORES TODOS", ...},
-  {"marca": "VARIAS MARCAS", "categoria": "CARAMELOS", "descripcion": "CARAMELOS TODOS", ...},
-  {"marca": "VARIAS MARCAS", "categoria": "CHICLES", "descripcion": "CHICLES TODOS", ...},
-  {"marca": "VARIAS MARCAS", "categoria": "CHOCOLATES", "descripcion": "CHOCOLATES TODOS", ...}
+  {"marca": "VARIAS MARCAS", "categoria": "ALFAJORES", "descripcion": "ALFAJORES", ...},
+  {"marca": "VARIAS MARCAS", "categoria": "CARAMELOS", "descripcion": "CARAMELOS", ...},
+  {"marca": "VARIAS MARCAS", "categoria": "CHICLES", "descripcion": "CHICLES", ...},
+  {"marca": "VARIAS MARCAS", "categoria": "CHOCOLATES", "descripcion": "CHOCOLATES", ...}
 ]
 ```
 
@@ -234,7 +245,7 @@ David lo escribió textualmente en el documento de ajustes: *"se genera un sku g
 
 ### Por qué descomponemos macro-categorías en el Caso E
 
-Las macro-categorías del folder ("GOLOSINAS", "VINOS FINOS, CHAMPAÑAS Y ESPUMANTES") son etiquetas comerciales del folder, no categorías canónicas de GDSnet. La base maestra trabaja con las 74 categorías que provee la skill `categorias-canonicas`. Si el agente carga "GOLOSINAS" como categoría, ese registro queda huérfano porque "GOLOSINAS" no existe en el sistema de GDS.
+Las macro-categorías del folder ("GOLOSINAS", "VINOS FINOS, CHAMPAÑAS Y ESPUMANTES") son etiquetas comerciales del folder, no categorías canónicas de GDSnet. La base maestra trabaja con las 74 categorías de `references/categorias-contratadas.md`. Si el agente carga "GOLOSINAS" como categoría, ese registro queda huérfano porque "GOLOSINAS" no existe en el sistema de GDS.
 
 ### Por qué el agente decide el match macro→categorías sin tabla pre-cargada
 
