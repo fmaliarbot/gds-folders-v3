@@ -1,264 +1,240 @@
 ---
 name: extracting-products
-description: Extrae productos de imágenes de catálogos promocionales de supermercados argentinos, identificando todos los campos visibles (descripción, marca, precios, promociones, unidad de medida, categoría, tipo de imagen). Esta es la skill principal que se debe usar para procesar cada página de un catálogo. Aplica la regla fundamental de no inventar datos, respeta el formato original del texto, y produce un JSON estructurado con una entrada por producto visible.
+description: Skill principal del agente. Define el schema de los 26 campos a extraer de cada producto en una imagen de catálogo, las reglas globales de extracción (no inventar, validar categoría contra lista canónica, preservar nombres comerciales), y el formato canónico de los valores. Esta es la primera skill que el agente debe leer y la fuente de verdad para todas las reglas semánticas. Otras skills auxiliares (reading-prices, reading-promotions, etc.) extienden estas reglas con detalle de casos específicos pero no las contradicen.
 ---
 
 # Extracción de Productos de Catálogos
 
 ## Rol
 
-Actuás como un analista experto en lectura de catálogos promocionales de supermercados argentinos. Tu trabajo es mirar una imagen de una página del folder y extraer todos los productos visibles con sus datos estructurados.
+Mirás una imagen de una página de un catálogo promocional argentino y extraés todos los productos visibles, devolviendo un array JSON con un objeto por producto siguiendo el schema canónico de GDSnet.
 
-## Regla absoluta: no inventar datos
+## Reglas globales del agente
+
+Estas reglas son la base de todo lo que hace el agente. Aplican a **todas las skills** y a **todos los campos del schema** salvo que una skill específica las extienda explícitamente.
+
+### Regla 1 — No inventar datos
 
 Extraé solo lo que ves escrito o impreso en la imagen.
 
-- Si un precio no se ve → `null`
-- Si la unidad de medida no se ve → `null`
-- Si el porcentaje de descuento no se ve → `null`
-- Si la marca no se ve → `null`
-- Si un dato está borroso y no lo podés leer con certeza → `null`
+- Precio no visible → `null`
+- Unidad de medida no visible → `null`
+- Porcentaje de descuento no visible → `null`
+- Marca no visible → `null`
+- Dato borroso que no podés leer con certeza → `null`
 
-No uses conocimiento general sobre productos argentinos para completar campos. No calcules precios que no están visibles. No derivés porcentajes que no están escritos. Un `null` es siempre mejor que un dato inventado.
+No usés conocimiento general para completar campos observables. No calculés precios que no están visibles. No derivés porcentajes que no están escritos. **Un `null` es siempre mejor que un dato inventado.**
 
-### Excepción controlada: matching contra listas canónicas del cliente
+Esta regla aplica universalmente — todas las demás skills la respetan. Si alguna skill parece contradecirla, prevalece esta regla.
 
-La regla de "no inventar" aplica a **datos observables en la imagen**. No aplica a decisiones de matching contra listas canónicas provistas por el cliente, que son reglas de negocio explícitas.
+#### Excepción controlada — campo `categoria`
 
-El único caso en esta skill donde esto aplica es el campo `nombre_categoria`: el agente matchea el producto contra la lista oficial de `references/categorias-contratadas.md` y asigna el valor canónico correspondiente, aunque la categoría no esté escrita literal en la imagen. Ver sección "9. nombre_categoria" para el detalle.
+La regla "no inventar" aplica a datos observables. **NO aplica a decisiones de matching contra listas canónicas del cliente**, que son reglas de negocio explícitas.
 
-Si el match no es claro, el comportamiento sigue siendo el mismo que el resto: `null` + nota en `comentarios`.
+Para el campo `categoria`, el agente puede usar conocimiento general sobre marcas argentinas conocidas si todas estas condiciones se cumplen:
 
-## Campos a extraer por cada producto
+1. La marca es claramente reconocible (logo legible).
+2. La marca opera predominantemente en una sola categoría canónica.
+3. La categoría inferida figura literalmente en `references/categorias-contratadas.md`.
+4. El producto NO tiene descriptor textual ni packaging visible que contradiga la inferencia.
 
-### 1. descripcion
+Cuando aplicás esta inferencia, **agregá `LOW_CONFIDENCE` a `review_reasons`**. Marca claramente que la asignación viene de conocimiento del agente, no de evidencia visual directa.
 
-El SKU canónico del producto según las convenciones de GDSnet. Este es el campo más crítico para el cruce con la base maestra del cliente: una descripción fiel al folder pero que no siga la estructura esperada rompe el match aunque el producto sea correcto.
+NO inferir cuando la marca opera en múltiples categorías (Nestlé, Unilever, La Serenísima), cuando la marca es desconocida, o cuando la categoría que correspondería NO está en la lista canónica.
 
-**Cómo construirlo:** Usar **siempre** la skill `building-sku-description`, que define:
+**Tabla de ejemplos** (basada en folders reales procesados):
 
-- Los 3 patrones canónicos (específico con medida, genérico por marca, "TODOS/TODAS")
-- Cómo decidir cuál patrón aplica según lo que muestra el folder
-- Diccionario de abreviaciones frecuentes (`SH`, `CR`, `DP`, `LIQ`, `TBK`, `S/AZ`, `V/M`, etc.)
-- Reglas de formato (mayúsculas, sin acentos, coma decimal, medida pegada a unidad)
+| Marca vista | Razonamiento | Acción |
+|---|---|---|
+| ANTARES (logo) | Cervecería argentina, opera solo en cerveza | `categoria: "CERVEZA"` + `LOW_CONFIDENCE` |
+| VILEDA (logo) | Productos de limpieza | `categoria: "LIMPIADORES Y MULTIUSOS"` + `LOW_CONFIDENCE` |
+| PATITO (logo) | Detergentes / jabón blanco | `categoria: "DETERGENTES"` + `LOW_CONFIDENCE` |
+| GORDON'S LATAS | Gin Gordon's en lata = bebida lista para tomar | `categoria: "RTD"` + `LOW_CONFIDENCE` |
+| FIORENTINA | Marca poco conocida o ambigua | `categoria: null` + `LOW_CONFIDENCE` |
+| KOTEX | Higiene femenina, NO contratada | `categoria: "CATEGORIA NO CONTRATADA"` + `CATEGORY_NOT_DEFINED` |
+| NUTRILON | Leche infantil, NO contratada | `categoria: "CATEGORIA NO CONTRATADA"` + `CATEGORY_NOT_DEFINED` |
+| NESTLÉ PUREZA VITAL | Nestlé es multi-rubro; AGUA MINERAL no está contratada | `categoria: "CATEGORIA NO CONTRATADA"` + `CATEGORY_NOT_DEFINED` |
+| LA SERENISIMA | Multi-categoría; LECHE LARGA VIDA no está contratada | `categoria: "CATEGORIA NO CONTRATADA"` + `CATEGORY_NOT_DEFINED` |
 
-**Nunca** construir una `descripcion` sin consultar esa skill. No copiar el texto tal como aparece en la imagen — GDSnet tiene una convención estructurada que hay que respetar.
+### Regla 2 — Preservar nombres comerciales de línea
 
-**Regla clave:** La descripción es el SKU completo incluyendo marca, modelo/variante y medida cuando corresponda. El campo `marca` separado se mantiene igualmente.
+Si el folder dice "7UP FREE", el SKU es `7UP FREE`, no `7UP S/AZ`. Si dice "Coca Cola Zero", es `COCA COLA ZERO`, no `COCA COLA S/AZ`.
 
-Ejemplos correctos (para más, ver `building-sku-description`):
+Aunque "Free" y "Zero" sean equivalentes funcionales de "sin azúcar", los nombres comerciales son parte del nombre del producto en la base maestra de GDSnet. Traducirlos rompe el match aunque la traducción sea semánticamente correcta.
 
-- Folder muestra "Nescafé Gold x 95g" → `descripcion: "NESCAFE GOLD 95G"`, `marca: "NESCAFE"`, `medida: 95`, `u_medida: "G"`
-- Folder muestra "Cif Baños" como banner de marca sin medida → `descripcion: "CIF BAÑOS"`, `marca: "CIF"`, `medida: null`, `u_medida: null`
-- Folder muestra "Todas las yerbas Amanda" → `descripcion: "AMANDA YERBAS TODAS"`, `marca: "AMANDA"`, `medida: null`, `u_medida: null`
+Nombres comerciales que SE preservan tal cual: `FREE`, `ZERO`, `LIGHT`, `DIET`, `ULTRA`, `BLACK`, `ORIGINAL`, `CLASSIC`, `MAX`, `PRO`, `PLUS`. Lista no exhaustiva — la regla es "si es un nombre comercial de línea, no traducir".
 
-### 2. unidad_medida
+Las abreviaciones del diccionario (`LIQ` para "Líquido", etc., en `building-sku-description`) sí se aplican, porque son convenciones de naming del agente, no traducciones de nombres comerciales.
 
-El gramaje, volumen, cantidad o presentación del producto.
+### Regla 3 — Validar categoría contra lista canónica
 
-**Cómo extraerlo:** Tomar la unidad tal como aparece escrita. Formato original del folder (ej: "x 820 g", "x 900 ml", "x 1.5 lt", "Pack x 6").
+El campo `categoria` debe ser **literalmente** uno de los valores de `references/categorias-contratadas.md` (74 categorías), o el literal `"CATEGORIA NO CONTRATADA"` cuando el producto está fuera de scope. Sin otros valores permitidos.
 
-Incluir la presentación cuando está indicada: "porrón", "bot" (botella), "lata", etc.
+Respetar mayúsculas, acentos y typos del archivo (ej: `LIUSTRAMUEBLES`, `PREMEZCALAS DULCES`, `CAFÉ` con tilde). Revisar la columna `NO INCLUYE` para descartar matches erróneos (chocolate para taza NO va a CHOCOLATES, vino Patero NO va a VINOS).
 
-Ejemplos:
-- "Vino El Cazador, bot x 750 ml" → `unidad_medida: "bot x 750 ml"`
-- "en porrón de cerveza" → `unidad_medida: "porrón"`
+**Cómo decidir el valor:**
 
-Si no se ve como texto en el folder: `null`.
+- Producto matchea claramente con una de las 74 → usar ese valor literal.
+- Producto **fuera de las 74** (ej: BARRAS DE CEREAL, LECHE LARGA VIDA, AGUA MINERAL) → `categoria: "CATEGORIA NO CONTRATADA"` + `CATEGORY_NOT_DEFINED` en `review_reasons`.
+- Producto cae en una **exclusión explícita** (columna `NO INCLUYE` — chocolate para taza, vino Patero) → también `categoria: "CATEGORIA NO CONTRATADA"` + `CATEGORY_NOT_DEFINED`.
+- Categoría **ambigua entre dos opciones de la lista canónica** (no es que esté fuera de scope, no podés decidir cuál de las 74 aplica) → `categoria: null` + `LOW_CONFIDENCE`. Diferenciar de "no contratada".
+- Producto no identificable (imagen ilegible) → `categoria: null` + `PRODUCT_NOT_RECOGNIZED` (regla 1, no inventar).
 
-### 3. marca
+### Regla 4 — Tarjetas de fidelidad y bancos: por SKU, no por bloque
 
-El nombre de marca tal como aparece escrito. Si dice "Copa de Oro", poner eso. Si dice "Inalpa Vida", poner la versión completa.
+`tarjeta_fidelidad` y `tarjeta_bancos` se completan **SOLO cuando el badge gráfico aparece directamente sobre o junto al SKU concreto**.
 
-Cuando hay múltiples marcas en un mismo bloque (ej: "Miller/Heineken/Imperial Golden/Blue Moon"), listarlas separadas por "/".
+- ❌ NO asumir por bloque promocional ni por proximidad
+- ❌ NO asumir por ser folder de una cadena que tiene tarjeta (ej: COTO con Comunidad COTO)
+- ❌ NO asumir aunque marcas vecinas tengan el badge visible
+- ✓ SOLO completar cuando el badge está visible **al lado o sobre el SKU concreto**
 
-Si no se ve: `null`.
+Si algunos SKUs de un bloque tienen el badge y otros no, eso es información significativa: la promoción aplica a algunos, no a todos. El agente debe respetar esa distinción literalmente. Ver la skill `coto` para el ejemplo crítico real de este patrón.
 
-### 4. precio_regular
+### Regla 5 — Por defecto no flagear
 
-El precio SIN descuento. A veces aparece tachado, en letra más chica, o con la leyenda "Antes", "Precio regular", "P. Lista".
+`needs_review` y `review_reasons` solo se activan cuando hay un problema concreto y verificable. Un campo en `null` por sí solo NO es un flag — es la respuesta correcta a "el dato no se ve". Ver `flagging-for-review` para los códigos canónicos y cuándo aplicarlos.
 
-**Cómo extraerlo:** El número tal como está, sin símbolo $. Ver la skill `reading-prices` para el formato.
+## Schema canónico — los 26 campos
 
-Si no se ve un precio sin descuento: `null`. No calcularlo.
+El array de productos del JSON final tiene un objeto por producto. Cada objeto debe tener exactamente estos 26 campos. Detalles de cada uno abajo.
 
-### 5. precio_oferta
+| # | Campo | Tipo | Skill que lo cubre |
+|---|---|---|---|
+| 1 | `categoria` | string \| null | esta skill (validar contra lista canónica) |
+| 2 | `marca` | string \| null | esta skill |
+| 3 | `descripcion` | string \| null | `building-sku-description` |
+| 4 | `descripcion_literal` | string \| null | esta skill |
+| 5 | `id_sku_interno_spm` | string \| null | esta skill |
+| 6 | `ean` | string \| null | esta skill |
+| 7 | `medida` | number \| null | esta skill |
+| 8 | `u_medida` | string \| null | esta skill |
+| 9 | `pagina` | number | provisto por el orquestador |
+| 10 | `tipo_oferta` | string | `classifying-ad-type` |
+| 11 | `precio_oferta` | number \| null | `reading-prices` |
+| 12 | `precio_anterior` | number \| null | `reading-prices` |
+| 13 | `precio_tarjeta_banco` | number \| null | `reading-prices` |
+| 14 | `precio_tarjeta_fidelidad` | number \| null | `reading-prices` |
+| 15 | `tipo_promocion_oferta` | string \| null | `reading-promotions` |
+| 16 | `tipo_promocion_tarjeta_fidelidad` | string \| null | `reading-promotions` |
+| 17 | `tipo_promocion_tarjeta_bancos` | string \| null | `reading-promotions` |
+| 18 | `combo` | "Principal" \| "Secundario" \| null | `detecting-combos` |
+| 19 | `carrier` | string \| null | `detecting-combos` |
+| 20 | `tarjeta_fidelidad` | string \| null | esta skill (regla 4) |
+| 21 | `tarjeta_bancos` | string \| null | esta skill (regla 4) |
+| 22 | `tipo_variedad` | string \| null | `extracting-multiple-products-per-image` |
+| 23 | `descripcion_variedad` | string \| null | `handling-closed-brand-categories` |
+| 24 | `maximo_unidades` | number \| null | esta skill |
+| 25 | `needs_review` | boolean | `flagging-for-review` |
+| 26 | `review_reasons` | array | `flagging-for-review` |
 
-El precio CON descuento. Generalmente es el número más grande y prominente.
+## Detalle de los campos cubiertos por esta skill
 
-**Cómo extraerlo:** Igual que precio_regular, solo el número.
+### marca
 
-Si no se ve: `null`.
+La marca como aparece en la imagen, en mayúsculas y sin acentos.
 
-### 6. porcentaje_descuento
+- "Coca Cola" → `"COCA COLA"`
+- "Müller" → `"MULLER"`
+- Si la marca claramente debería estar visible pero no se distingue (logo cortado, texto borroso): `null` + `BRAND_NOT_RECOGNIZED` en `review_reasons`.
+- Si hay múltiples marcas en un mismo bloque, ver `handling-closed-brand-categories`.
 
-El porcentaje de descuento tal como está escrito, convertido a decimal.
+### descripcion_literal
 
-- "35%" → `0.35`
-- "25% OFF" → `0.25`
+Texto del producto exactamente como aparece en el folder, sin normalizar.
 
-Si no se ve un porcentaje escrito: `null`. No calcularlo a partir de los precios.
+- Útil para auditoría y trazabilidad.
+- Folder: "Coca Cola Zero — 2,25 lts (lata)" → `descripcion_literal: "Coca Cola Zero — 2,25 lts (lata)"`
+- Si no aparece un texto literal claro: `null`. **No genera flag** por estar vacío.
 
-### 7. tipo_promocion
+### id_sku_interno_spm
 
-El texto de la promoción tal como aparece en la imagen. Copiar textual.
+Código interno que la cadena le pone al SKU, si está visible (algunas cadenas como COTO publican códigos cortos, ej: `Cod: 42210`).
 
-Ejemplos: "35%", "2x1", "70% en la 2da unidad", "2do al 50%", "3x2", "Llevá 3 pagá 2".
+- Si está visible: copiar tal cual.
+- Si no está visible: `null`. **No flagear** — es esperable que muchas cadenas no lo publiquen.
 
-**Importante:** Si la imagen muestra un tipo de promoción (como "2x1"), registrarlo SIEMPRE, incluso si el producto es tipo "publicidad" (sin precios). La promoción es un dato visible independiente del precio.
+### ean
 
-Si no hay texto de promoción visible: `null`.
+Código de barras, **solo si está visible en la imagen**.
 
-### 8. tipo_imagen
+- Si está visible: copiar tal cual (13 dígitos típicamente).
+- Si no está visible: `null`. **No buscarlo en el maestro de SKUs** — eso es trabajo del pipeline downstream.
 
-Cómo se presenta este producto en la página. Ver la skill `classifying-ad-type` para la clasificación detallada. Valores posibles: `regular`, `destacada`, `publicidad`, `publicacion`.
+### medida y u_medida
 
-### 9. nombre_categoria
+Cantidad numérica + unidad, separadas en dos campos.
 
-La categoría canónica del producto según el sistema de clasificación de GDSnet. Es una de las entradas del archivo `references/categorias-contratadas.md` (columna `CATEGORIAS`).
+**`medida`:** número (entero o decimal). Ej: `2.25` para "2,25L", `190` para "190g", `25` para "25 unidades". Si no se ve: `null`.
 
-**Regla crítica — fuente de verdad absoluta:**
+**`u_medida`:** código canónico:
+- `"GR"` — gramos
+- `"KG"` — kilos
+- `"CC"` — centímetros cúbicos / mililitros (David usa CC indistintamente con ML para bebidas líquidas envasadas)
+- `"ML"` — mililitros
+- `"L"` — litros
+- `"UNI"` — unidades
+- Si no se puede identificar: `null`.
 
-El valor del campo `nombre_categoria` **SIEMPRE** debe ser **literalmente idéntico** a uno de los valores de la columna `CATEGORIAS` del archivo `references/categorias-contratadas.md`. Sin excepciones.
+Si la medida no aparece visible en el frente del producto pero sí en el packaging, mirar el packaging para extraerla. Si no está ahí tampoco, `null` sin flag (ausencia esperada en muchos bloques tipo Publicación).
 
-Esto incluye:
-- Respetar **exactamente** el uso de singular vs plural (ej: `DESODORANTES DE AMBIENTE` es el valor canónico, NO `DESODORANTE DE AMBIENTES`)
-- Respetar **exactamente** los typos originales del archivo (ej: `LIUSTRAMUEBLES`, `PREMEZCALAS`, `PREMEZCALS`)
-- Respetar **exactamente** las mayúsculas/minúsculas y acentos del archivo (ej: `CAFÉ` con tilde)
-- Respetar **exactamente** los espacios y signos (ej: `APERITIVOS C/ALCOHOL` con la barra)
+### maximo_unidades
 
-**El agente NUNCA debe "corregir", "normalizar" ni "interpretar" el nombre de la categoría.** Si el archivo dice `DESODORANTES DE AMBIENTE`, el agente escribe `DESODORANTES DE AMBIENTE`. Si el archivo tiene un typo, el agente preserva el typo. La razón es que cualquier desviación rompe el match exacto contra la base maestra de GDSnet, que es el único criterio que importa.
+Máximo de unidades que el cliente puede comprar bajo esta promoción, si lo indica la oferta. Solo número (ej: `4`, `6`). Si no especifica: `null`.
 
-**Cómo asignarla:**
+## Cuándo flagear (resumen)
 
-1. Mirar el producto (descripción, marca, presentación) y matchearlo contra la lista de categorías contratadas disponible en `references/categorias-contratadas.md`.
-2. Copiar el valor **literal** de la columna `CATEGORIAS` del archivo. No reformular, no modificar.
-3. Revisar la columna `NO INCLUYE` del archivo para descartar matches erróneos. Por ejemplo, un producto de chocolate para taza NO va a la categoría `CHOCOLATES`; un vino Patero NO va a `VINOS`.
+Solo flagear cuando el caso encaja con un problema concreto:
 
-**Cuándo dejar `null`:**
+| Condición | Código a agregar |
+|---|---|
+| Imagen no permite identificar el producto | `PRODUCT_NOT_RECOGNIZED` |
+| Marca claramente debería estar visible pero no se distingue | `BRAND_NOT_RECOGNIZED` |
+| Categoría no matchea con ninguna canónica | `CATEGORY_NOT_DEFINED` |
+| Categoría inferida por conocimiento general | `LOW_CONFIDENCE` |
+| Hay un precio pero no se puede leer con certeza | `PRICE_AMBIGUOUS` |
+| Marca cerrada sin lista de categorías (caso ESPADOL) | `CLOSED_BRAND_WITHOUT_CATEGORY_LIST` |
+| Macro-categoría de footer no matchea con canónica | `MACRO_CATEGORY_UNMAPPED` |
+| Combo donde no queda claro Principal vs Secundario | `COMBO_AMBIGUOUS` |
+| Múltiples SKUs visibles compartiendo un solo código | `MULTIPLE_SKUS_SHARED_CODE` |
+| Caso borderline general | `LOW_CONFIDENCE` |
 
-- Cuando el producto no matchea claramente con ninguna categoría de la lista
-- Cuando el producto podría ir a dos o más categorías y no se puede elegir con certeza
-- Cuando el producto cae en una exclusión explícita (NO INCLUYE) y no hay otra categoría clara
+Ver `flagging-for-review` para detalle completo de cada código.
 
-En cualquiera de estos casos, dejar `nombre_categoria` en `null` y agregar una nota en el campo `comentarios` explicando el motivo (ej: `"categoría no identificable con la lista contratada"`, `"posible match con VINOS pero podría ser APERITIVOS C/ALCOHOL"`).
+**Cuándo NO flagear:**
+- Una medida no visible en bloque tipo Publicación.
+- `id_sku_interno_spm` en `null` cuando la cadena no publica códigos.
+- `descripcion_literal` en `null` cuando no hay texto literal claro.
+- Tarjetas en `null` cuando la imagen no muestra badges.
 
-**Importante — distinguir de la sección del folder:**
+## Skills auxiliares — cuándo cargarlas
 
-La categoría canónica de GDSnet NO es lo mismo que el título de sección que aparece escrito en la página del folder (ej: "Bebidas", "Almacén"). Esos títulos son segmentaciones visuales del folder; la categoría canónica es el valor interno de GDSnet que va en la columna del output.
+El agente carga skills auxiliares según el caso del producto que está procesando:
 
-Si la página tiene un título tipo "Bebidas" pero el producto es un vino, la categoría canónica es `VINOS` (según la lista), no `Bebidas`.
+- **Productos individuales con precio y descripción clara** → solo `extracting-products` + `building-sku-description` + `reading-prices` + `reading-promotions` + `formatting-output`.
+- **Productos en combo (2+ productos con precio único)** → además `detecting-combos`.
+- **Productos en bloque tipo Publicación o categoría cerrada con marcas listadas** → además `handling-closed-brand-categories` y `extracting-multiple-products-per-image`.
+- **Productos en folder de una cadena con skill específica** (ej: COTO) → además la skill de cadena.
+- **Productos donde hay que decidir si flagear** → `flagging-for-review`.
 
-### 10. combo
+## Formato del JSON final
 
-Si el producto es parte de un combo. Ver la skill `detecting-combos` para la lógica completa.
-
-Valores: `"Principal"`, `"Secundario"`, o `null`.
-
-### 11. carrier
-
-Si es combo, la descripción del otro producto del combo. Ver la skill `detecting-combos`.
-
-### 12. tarjeta_fidelidad
-
-Si la imagen muestra explícitamente que una tarjeta de fidelidad aplica a este producto.
-
-**Cómo detectarlo:** Buscar menciones como "Comunidad Coto", "Club Dia", "Mi Carrefour", logos de tarjetas, o textos como "X% adicional con [tarjeta]" junto al producto.
-
-**Importante:** Solo registrar si la imagen lo muestra explícitamente para ese producto. No asumir que aplica a todos los productos por ser de una cadena. La skill específica de cadena (ej: `coto`) provee los nombres canónicos de las tarjetas.
-
-Si no se ve mención de tarjeta junto al producto: `null`.
-
-### 13. comentarios
-
-Campo libre para notas sobre el producto que no encajan en otros campos pero que el revisor humano necesita saber.
-
-**Cuándo usarlo:**
-
-- **"varios sabores"** cuando el bloque tiene variedades (sabores/fragancias/tipos) del mismo producto y se eligió una variedad concreta para la descripción. Ver `handling-closed-brand-categories` → Caso D.
-- **"varias variedades"** o el término que corresponda cuando es un caso similar pero no son sabores (ej: distintos perfumes de un mismo shampoo).
-- **Información adicional visible** sobre el producto que no entró en descripción ni marca (ej: "edición limitada", "nuevo").
-- **Notas de incertidumbre** que ayuden al revisor humano (ej: "precio poco legible", "producto parcialmente cortado en la imagen").
-
-**Cuándo NO usarlo:**
-
-- No poner interpretaciones ni deducciones del modelo.
-- No repetir información que ya está en otros campos.
-- No usar para marcar productos "para revisión" — eso es parte del flujo de flag, no del campo `comentarios`.
-
-Si no hay nada relevante que anotar: `null`.
-
-**Nota sobre el nombre del campo:** el nombre `comentarios` es provisional. El esquema final del Excel de GDSnet puede usar otro nombre (`observaciones`, `nota`, etc.). Cuando David confirme el esquema final, se renombra en todas las skills.
-
-## Situaciones especiales
-
-### Varios productos en una misma imagen
-
-Ver la skill `extracting-multiple-products-per-image`.
-
-### Grupo de productos de una marca (tipo "publicacion")
-
-Ver la skill `handling-closed-brand-categories`.
-
-### Producto sin precios (tipo "publicidad")
-
-Crear la entrada con lo que sí se ve (descripción, marca, tipo_promocion si es visible). Todos los campos de precio quedan en `null`, pero el tipo de promoción se registra si está escrito (ej: "2x1").
-
-### Vinos y bebidas
-
-Para vinos, la descripción debe incluir el nombre comercial completo del vino, y si es visible, la cepa/varietal (Malbec, Cabernet, etc.) y el año. La marca es la bodega o línea.
-
-Ejemplo: "Vino Episodio del Callejón" con marca "Episodio del Callejón". Si se lee "Malbec 2020", agregar: "Vino Episodio del Callejón Malbec 2020".
-
-## Formato de respuesta
-
-Responder solo con JSON válido. Sin texto antes ni después. Sin backticks. Sin explicaciones.
-
-```json
-{
-  "pagina": <número_de_página>,
-  "productos": [
-    {
-      "descripcion": "texto o null",
-      "unidad_medida": "texto o null",
-      "marca": "texto o null",
-      "precio_regular": <número o null>,
-      "precio_oferta": <número o null>,
-      "porcentaje_descuento": <decimal o null>,
-      "tipo_promocion": "texto o null",
-      "tipo_imagen": "regular|destacada|publicidad|publicacion",
-      "nombre_categoria": "texto o null",
-      "combo": "Principal|Secundario|null",
-      "carrier": "texto o null",
-      "tarjeta_fidelidad": "texto o null",
-      "comentarios": "texto o null"
-    }
-  ]
-}
-```
+Ver la skill `formatting-output` para la estructura exacta del JSON, validaciones sintácticas, y reglas finales antes de emitir.
 
 ## Notas de diseño
 
-### Por qué la regla de "no inventar" está tan enfatizada
+### Por qué centralizamos las reglas globales en esta skill
 
-Los modelos de visión tienden a "completar" información usando conocimiento general. Si ven un producto Copa de Oro, saben que es de 820g aunque no lo lean. Esta tendencia hay que frenarla explícitamente y con repetición.
+Antes las reglas "no inventar", "preservar nombres comerciales", "tarjetas por SKU", etc. estaban repetidas en 5+ skills distintas. Cuando aplicamos updates las modificábamos en una y se quedaban viejas en otras, generando contradicciones. Ahora viven solo acá.
 
-### Por qué se pide el texto exacto
+### Por qué `medida` y `u_medida` se separan
 
-Para evitar que el modelo reformule descripciones. Si el folder dice "Duraznos en mitades reducido en calorías", queremos exactamente eso, no "Duraznos light en mitades".
+Antes el campo era ambiguo (`"190g"` mezclando número y unidad). Separados, la integración con la base maestra de GDS es más robusta.
 
-### Por qué los precios son números sin $
+### Por qué hay 4 campos de precio y 3 de promoción
 
-Para facilitar el parsing del JSON. El modelo a veces agrega el símbolo $ si no se le dice explícitamente que no lo haga.
+Es el schema canónico de GDSnet. Las cadenas argentinas frecuentemente ofrecen tres dimensiones simultáneas: descuento base, descuento adicional con tarjeta de fidelidad, descuento adicional con tarjeta bancaria. Mezclados en un solo campo se perdía info.
 
-### Por qué no se pide calcular nada
+### Por qué la matching de EAN no es responsabilidad del agente
 
-Si solo se ve el precio de oferta y el descuento, el modelo podría calcular el precio regular. Pero ese cálculo puede ser incorrecto (redondeos, precios con centavos). Es mejor tener `null` y que un humano lo complete, que tener un número mal calculado que se da por bueno.
-
-### Por qué la descripción y la marca se separan
-
-En el Excel destino son campos separados. Si el folder dice "Cerveza Lager Classic Hermann Müller", la descripción es "Cerveza Lager Classic" y la marca es "Hermann Müller". Esto permite filtrar por marca sin parsear la descripción.
-
-### Por qué se registra la promoción en publicidades
-
-Un producto puede no tener precio visible pero sí tener "2x1" escrito. Esa es información valiosa — el tipo de promo es un dato independiente del precio.
+David lo dijo explícito: *"este proceso puede no hacerlo el agente y quedar del lado de la integración"*. El agente extrae lo que ve. Si no hay EAN visible, deja `null` y el pipeline downstream hace el lookup.

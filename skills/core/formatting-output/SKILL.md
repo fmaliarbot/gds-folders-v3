@@ -1,210 +1,154 @@
 ---
 name: formatting-output
-description: Aplica las convenciones de formato del Excel de GDSnet al output del agente antes de entregarlo. Usar siempre como paso final, después de extraer los productos aplicando las skills de extracción. Convierte el formato "puro" del agente (preservando lo que ve la imagen) al formato estandarizado que GDSnet usa en su Excel de carga (unidades compactas en mayúsculas, promociones con sufijo DTO, SKU concatenado, etc.).
+description: Última skill que el agente aplica antes de devolver la respuesta. Define la estructura exacta del JSON final, las validaciones sintácticas (JSON parseable, todos los campos presentes, tipos correctos), y las reglas básicas de serialización (mayúsculas, números puros, arrays vacíos). NO contiene normalización semántica de valores — esa vive en `extracting-products` y skills auxiliares (reading-prices, reading-promotions, etc.).
 ---
 
-# Formato de Output para GDSnet
-
-## Problema que resuelve esta skill
-
-El agente extrae información de los catálogos preservando el formato original de lo que aparece en la imagen (ej: "x 237 ml", "25%", "2x1"). GDSnet tiene convenciones específicas para su Excel de carga que difieren del formato natural. Esta skill aplica esas convenciones como paso final, sin modificar la información real extraída.
+# Formato del JSON Final
 
 ## Cuándo usar esta skill
 
-Activar esta skill al final del proceso de extracción, cuando se genera el output para GDSnet. El orden correcto es:
+Activar al final del proceso, después de extraer los productos y completar todos los campos. El orden es:
 
-1. Extraer productos de las imágenes aplicando skills de extracción (`extracting-products`, `reading-prices`, etc.)
-2. Aplicar particularidades de la cadena (`coto`, `carrefour`, etc.)
-3. **Aplicar esta skill para formatear el output según las convenciones de GDSnet**
-4. Entregar el resultado
+1. Aplicar `extracting-products` y skills auxiliares para extraer los datos.
+2. Aplicar `flagging-for-review` para asignar `needs_review` y `review_reasons`.
+3. **Aplicar esta skill para validar y emitir el JSON final.**
 
 ## Principio fundamental
 
-Esta skill es **solamente de formateo**. No cambia la información, no infiere datos nuevos, no rellena campos faltantes. Solo reescribe los valores existentes según las convenciones de GDSnet.
+Esta skill es **sintáctica**, no semántica. Verifica que el JSON sea válido y que todos los productos tengan los 26 campos en su tipo correcto. La normalización de valores (mayúsculas para texto, códigos canónicos para unidades, formato de promociones) ya se aplicó durante la extracción siguiendo las skills correspondientes.
 
-Si un campo está en `null` antes del formateo, sigue en `null` después. Si un precio es `500`, sigue siendo `500` después.
+Si algo llega mal formateado a este punto, este skill lo arregla — pero idealmente nunca debería pasar.
 
-## Reglas de formato por campo
+## Estructura del JSON final
 
-### Unidad de medida
+El agente devuelve **exactamente** este formato. **Sin texto antes, sin texto después, sin backticks, sin explicaciones.**
 
-Formato compacto, en mayúsculas, sin "x", sin espacios.
+```json
+{
+  "productos": [
+    {
+      "categoria": "GASEOSAS",
+      "marca": "COCA COLA",
+      "descripcion": "COCA COLA ZERO 2,25L",
+      "descripcion_literal": "Coca Cola Zero 2,25 lts",
+      "id_sku_interno_spm": null,
+      "ean": null,
+      "medida": 2.25,
+      "u_medida": "L",
+      "pagina": 8,
+      "tipo_oferta": "Publicación",
+      "precio_oferta": 4085,
+      "precio_anterior": 5450,
+      "precio_tarjeta_banco": null,
+      "precio_tarjeta_fidelidad": null,
+      "tipo_promocion_oferta": "25%DTO LLEVANDO 2",
+      "tipo_promocion_tarjeta_fidelidad": null,
+      "tipo_promocion_tarjeta_bancos": null,
+      "combo": null,
+      "carrier": null,
+      "tarjeta_fidelidad": null,
+      "tarjeta_bancos": null,
+      "tipo_variedad": null,
+      "descripcion_variedad": null,
+      "maximo_unidades": null,
+      "needs_review": false,
+      "review_reasons": []
+    }
+  ]
+}
+```
 
-| Formato puro del agente | Formato GDSnet |
-| :---- | :---- |
-| `"x 237 ml"` | `"237ML"` |
-| `"x 1,75 Lt"` | `"1,75L"` |
-| `"x 750 ml"` | `"750ML"` |
-| `"x 750 CC"` | `"750CC"` |
-| `"x 330 ml"` | `"330ML"` |
-| `"x 2 Lt"` | `"2L"` |
-| `"x 1 kg"` | `"1KG"` |
-| `"x 820 g"` | `"820G"` |
-| `"bot x 750 ml"` | `"750ML"` (se quita "bot", la presentación va en el SKU si aplica) |
-| `"porrón"` | `"PORRON"` |
+## Validaciones antes de emitir
 
-**Regla general:** quitar "x ", quitar espacios internos, convertir a mayúsculas, quitar puntos si los hubiera. La coma decimal se preserva (ej: "1,75L").
+Antes de devolver el JSON, el agente verifica:
 
-**Presentaciones no numéricas** (porrón, lata, pack): se convierten a mayúsculas y se preservan como están.
+### 1. Es JSON válido y parseable
 
-### Tipo de promoción
+- Sin trailing commas.
+- Sin comentarios.
+- Sin backticks ni texto fuera del objeto raíz.
+- Strings con comillas dobles, no simples.
 
-Formato en mayúsculas. Para descuentos porcentuales, agregar sufijo `DTO`.
+### 2. Todos los productos tienen los 26 campos
 
-| Formato puro del agente | Formato GDSnet |
-| :---- | :---- |
-| `"25%"` | `"25%DTO"` |
-| `"35%"` | `"35%DTO"` |
-| `"40%"` | `"40%DTO"` |
-| `"2x1"` | `"2X1"` |
-| `"3x2"` | `"3X2"` |
-| `"70% en la 2da unidad"` | `"70% EN LA 2DA"` |
-| `"2do al 50%"` | `"2DO AL 50%"` |
-| `"25% llevando 2"` | `"25%DTO LLEVANDO 2"` |
+Aunque algunos campos sean `null` o `[]`, los campos deben estar presentes en el objeto. No omitir campos vacíos.
 
-**Reglas:**
-- Todo en mayúsculas
-- Porcentajes simples agregan `DTO` al final (ej: `"25%"` → `"25%DTO"`)
-- Las promociones multi-unidad (`2X1`, `3X2`) no llevan `DTO`
-- Texto adicional (como "llevando 2") se mantiene pero en mayúsculas
-- Si el valor era `null`, queda `null`
+### 3. Tipos correctos por campo
 
-### Marca
+| Campo | Tipo válido |
+|---|---|
+| Strings (categoria, marca, descripcion, etc.) | string o `null` |
+| Precios (precio_oferta, precio_anterior, etc.) | number o `null` (nunca string) |
+| medida | number o `null` (nunca string como `"190g"`) |
+| u_medida | string canónico (`"GR"`, `"KG"`, `"CC"`, `"ML"`, `"L"`, `"UNI"`) o `null` |
+| pagina | number entero |
+| needs_review | boolean (`true` / `false`) |
+| review_reasons | array (vacío `[]` cuando no hay nada, **no** `null`) |
+| combo | `"Principal"`, `"Secundario"`, o `null` |
 
-En mayúsculas.
+### 4. Coherencia entre campos relacionados
 
-| Formato puro del agente | Formato GDSnet |
-| :---- | :---- |
-| `"Aquarius"` | `"AQUARIUS"` |
-| `"Fanta"` | `"FANTA"` |
-| `"Fanta Zero"` | `"FANTA"` (ver nota abajo) |
-| `"Coto"` | `"COTO"` |
-| `"Fond de Cave"` | `"FOND DE CAVE"` |
-| `"Hermann Müller"` | `"HERMANN MULLER"` (sin acentos especiales) |
+- **`needs_review` vs `review_reasons`:** si el array tiene elementos → `needs_review = true`. Si está vacío → `needs_review = false`.
+- **`combo` vs `carrier`:** si `combo = "Secundario"` → `carrier` no debe ser `null`. Si `combo = null` → `carrier` debe ser `null`.
 
-**Nota sobre variantes de marca:** cuando una marca tiene variantes que el catálogo presenta como sub-marcas (ej: Fanta / Fanta Zero), la marca canónica en GDSnet es la marca principal (`FANTA`), y la variante se refleja en el SKU y descripción. Confirmar con el mapeo de la base maestra.
+### 5. Códigos canónicos en `review_reasons`
 
-**Caracteres especiales:** reemplazar acentos y diéresis por su equivalente sin acento (ej: "Müller" → "MULLER"). La letra `Ñ` se preserva.
+Cada elemento del array es un código en SCREAMING_SNAKE_CASE. Ver `flagging-for-review` para la lista válida. No inventar códigos nuevos.
 
-### SKU (descripción del producto)
+### 6. Códigos de `tipo_oferta` canónicos
 
-Concatenación de: `MARCA + DESCRIPCIÓN + UNIDAD DE MEDIDA`, todo en mayúsculas.
+Solo: `"Regular"`, `"Destacado"`, `"Publicidad"`, `"Publicación"` (con tilde). No otros.
 
-| Componentes | SKU GDSnet |
-| :---- | :---- |
-| Marca: Aquarius, Desc: "Agua saborizada uva verde", Unidad: "x 237 ml" | `"AQUARIUS UVA VERDE 237ML"` |
-| Marca: Fanta, Desc: "Gaseosa sabor Naranja", Unidad: "x 1,75 Lt" | `"FANTA NARANJA 1,75L"` |
-| Marca: Coto, Desc: "Soda", Unidad: "x 1,75 Lt" | `"COTO SODA 1,75L"` |
-| Marca: Heineken, Desc: "Cerveza", Unidad: "x 330 ml" | `"HEINEKEN 330ML"` |
-| Marca: Fond de Cave, Desc: "Vino Fond de Cave reserva", Unidad: "x 750 ml" | `"FOND DE CAVE RES MALBEC 750CC"` |
+## Reglas mínimas de formato (sintáctico)
 
-**Reglas:**
-- Todo en mayúsculas
-- La descripción se abrevia siguiendo convenciones del manual cuando es posible (ej: "reserva" → "RES", "reducido en calorías" → "REDUC CAL")
-- La marca NO se repite en la descripción si ya aparece
-- La unidad de medida va al final en formato GDSnet
-- Quitar palabras redundantes ("sabor", "gaseosa") si la categoría ya lo implica
+Estas son las reglas finales que el agente revisa antes de emitir. La normalización semántica completa ya se hizo durante la extracción.
 
-**Nota:** el SKU final canónico viene de la base maestra de GDSnet. Si no hay match, se usa la concatenación siguiendo estas reglas. El cruce contra la base maestra tiene prioridad sobre esta formación automática.
+### Strings de texto
 
-### Categoría
+- Mayúsculas (excepto `descripcion_literal` y `tipo_oferta`/`combo`/`tipo_variedad` que tienen su propia convención).
+- Sin acentos en `marca` y `descripcion`.
+- La `Ñ` se preserva.
+- `descripcion_literal` se preserva tal como aparece en el folder (ese es su propósito de auditoría).
 
-En mayúsculas, nombre canónico según la base de categorías contratadas de GDSnet.
+### Números
 
-| Formato puro del agente | Formato GDSnet |
-| :---- | :---- |
-| `"Aguas saborizadas"` | `"AGUAS SABORIZADAS"` |
-| `"Gaseosas"` | `"GASEOSAS"` |
-| `"Vinos"` | `"VINOS"` |
-| `"Aperitivos con alcohol"` | `"APERITIVOS C/ALCOHOL"` |
+- Sin símbolo `$`.
+- Sin separador de miles.
+- Decimales con punto, no coma.
+- Formato canónico: `4085`, `2143.9`, `2.25`.
 
-**Nota:** la lista definitiva de categorías viene de la base de categorías contratadas de GDSnet. Esta skill asume que el valor ya es el canónico y solo lo convierte a mayúsculas.
+### Nulls preservados
 
-### Tipo de aviso
+- Nunca reemplazar `null` por `0`, `""`, `"N/A"` o cualquier otro placeholder.
+- `null` significa "este dato no existe en la fuente". Es información válida.
+- La capa de exportación a Excel/CSV decide después cómo serializarlos si hace falta.
 
-Primera letra en mayúscula, resto en minúsculas. Los espacios de padding a la derecha son opcionales (el Excel del manual los incluye pero no son significativos).
+### Arrays vacíos
 
-| Formato puro del agente | Formato GDSnet |
-| :---- | :---- |
-| `"regular"` | `"Regular"` |
-| `"destacada"` | `"Destacado"` (nota: el manual usa masculino) |
-| `"publicacion"` | `"Publicacion"` |
-| `"publicidad"` | `"Publicidad"` |
+- `review_reasons: []` cuando no hay nada que flagear (no `null`).
 
-### Publicador
+## Lo que NO hace esta skill
 
-En mayúsculas. Valor por defecto: `"REGULAR"` si no hay publicador específico identificado.
+Para evitar duplicación con otras skills:
 
-### Precios
+- **No define cómo construir descripciones** → `building-sku-description`.
+- **No define el formato de precios argentinos** → `reading-prices`.
+- **No define el formato de promociones** → `reading-promotions`.
+- **No decide qué flagear** → `flagging-for-review` y `extracting-products`.
+- **No decide qué categoría asignar** → `extracting-products` (regla 3).
 
-Formato numérico sin decimales si el precio es entero. Con decimales si los tiene.
+Si llega algo mal formateado a este punto, esta skill lo arregla, pero la fuente de verdad de cada regla vive en su skill correspondiente.
 
-| Formato puro | Formato GDSnet |
-| :---- | :---- |
-| `500` | `500.0` o `500` (ambos válidos) |
-| `2143.9` | `2143.9` |
-| `null` | Ver regla de campos vacíos abajo |
+## Notas de diseño
 
-### Campos vacíos: null vs 0
+### Por qué el output es JSON y no Excel/CSV
 
-GDSnet usa el valor `0` en algunos campos cuando el dato no existe, y el valor vacío/null en otros. La regla depende del campo:
+El agente devuelve JSON estructurado para que el pipeline downstream lo consuma sin parsing. La conversión a Excel/CSV es responsabilidad de la integración con GDSnet, no del agente.
 
-- **Precio_Regular, Precio_Oferta:** si el producto no tiene precio visible → `0` (no `null`)
-- **Descuento %, Porcentaje_Descuento:** si no hay porcentaje → `null` o campo vacío
-- **Unidad de medida:** si no es visible → queda vacío (no `null` literal en el Excel, sino celda vacía)
-- **Marca, SKU:** nunca deberían estar vacíos; si lo están, el registro va a revisión
+### Por qué `null` se preserva en lugar de convertirse a `0`
 
-**Principio:** el agente sigue usando `null` para "dato no visible" durante la extracción. Esta skill convierte a `0` los precios cuando el registro final se escribe al Excel.
+`null` es semánticamente distinto a `0`. `null` = "no existe el dato", `0` = "el dato existe y vale cero". Mezclarlos pierde información. Ver el caso del Secundario de un combo (`precio_oferta: 0` porque está absorbido por el Principal — eso sí es `0` real, no `null`).
 
-### Combo
+### Por qué esta skill ahora es más corta que antes
 
-| Formato puro | Formato GDSnet |
-| :---- | :---- |
-| `"Principal"` | `"Principal"` |
-| `"Secundario"` | `"Secundario"` |
-| `null` | campo vacío |
-
-### Tarjeta de fidelidad
-
-En mayúsculas, nombre canónico de la skill de cadena.
-
-| Formato puro | Formato GDSnet |
-| :---- | :---- |
-| `"Comunidad COTO"` | `"COMUNIDAD COTO"` |
-| `null` | campo vacío |
-
-### Comentarios
-
-Campo de texto libre con notas del agente para el revisor humano. En el Excel se conserva el texto tal como lo generó el agente.
-
-| Formato puro | Formato GDSnet |
-| :---- | :---- |
-| `"varios sabores"` | `"varios sabores"` (sin cambios) |
-| `"edición limitada"` | `"edición limitada"` (sin cambios) |
-| `null` | campo vacío |
-
-**Nota:** el nombre de la columna en el Excel puede ser `Comentarios`, `Observaciones` u otro según el esquema final de GDSnet. El contenido no se transforma.
-
-## Orden de aplicación
-
-Esta skill se aplica al final, después de:
-
-1. Extracción pura del agente
-2. Aplicación de skills core (`extracting-products`, `reading-prices`, etc.)
-3. Aplicación de skill de cadena (`coto`, `carrefour`, etc.)
-4. Resolución de categoría contra base maestra (cuando esté disponible)
-
-Y antes de:
-
-5. Generación del Excel final para entregar a GDSnet
-
-## Casos edge y decisiones pendientes
-
-Esta skill tiene reglas inferidas del Excel manual de referencia. Algunas particularidades que aún requieren confirmación de GDSnet:
-
-- Formato exacto de promociones compuestas (ej: tarjeta + %)
-- Tratamiento de caracteres especiales en nombres de marca
-- Criterio para abreviaciones en SKU cuando la descripción es larga
-- Convenciones para categorías nuevas no presentes en el manual de referencia
-
-Estos puntos se irán refinando a medida que procesemos más catálogos y recibamos feedback del cliente.
+En versiones anteriores duplicaba reglas de normalización con `extracting-products` y otras skills. La duplicación generaba contradicciones cuando hacíamos updates. Ahora cada regla vive en una sola skill (la que define el campo o concepto), y esta skill solo hace validación sintáctica final.
