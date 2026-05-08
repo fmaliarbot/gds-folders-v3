@@ -10,9 +10,9 @@ agent:
 
 model:
   # Modelo principal para el agente
-  primary: claude-opus-4-6
+  primary: claude-sonnet-4-6
   # Modelo fallback en caso de error o límite de rate
-  fallback: claude-sonnet-4-6
+  fallback: claude-haiku-4-5
 
 skills:
   # Directorios donde vive cada tipo de skill

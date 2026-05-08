@@ -50,11 +50,11 @@ NO inferir cuando la marca opera en múltiples categorías (Nestlé, Unilever, L
 | VILEDA (logo) | Productos de limpieza | `categoria: "LIMPIADORES Y MULTIUSOS"` + `LOW_CONFIDENCE` |
 | PATITO (logo) | Detergentes / jabón blanco | `categoria: "DETERGENTES"` + `LOW_CONFIDENCE` |
 | GORDON'S LATAS | Gin Gordon's en lata = bebida lista para tomar | `categoria: "RTD"` + `LOW_CONFIDENCE` |
-| FIORENTINA | Marca poco conocida o ambigua | `categoria: null` + `CATEGORY_NOT_DEFINED` |
-| KOTEX | Higiene femenina, NO contratada | `categoria: null` + `CATEGORY_NOT_DEFINED` |
-| NUTRILON | Leche infantil, NO contratada | `categoria: null` + `CATEGORY_NOT_DEFINED` |
-| NESTLÉ PUREZA VITAL | Nestlé es multi-rubro; AGUA MINERAL no está contratada | `categoria: null` + `CATEGORY_NOT_DEFINED` |
-| LA SERENISIMA | Multi-categoría; LECHE LARGA VIDA no está contratada | `categoria: null` + `CATEGORY_NOT_DEFINED` |
+| FIORENTINA | Marca poco conocida o ambigua | `categoria: null` + `LOW_CONFIDENCE` |
+| KOTEX | Higiene femenina, NO contratada | `categoria: "CATEGORIA NO CONTRATADA"` + `CATEGORY_NOT_DEFINED` |
+| NUTRILON | Leche infantil, NO contratada | `categoria: "CATEGORIA NO CONTRATADA"` + `CATEGORY_NOT_DEFINED` |
+| NESTLÉ PUREZA VITAL | Nestlé es multi-rubro; AGUA MINERAL no está contratada | `categoria: "CATEGORIA NO CONTRATADA"` + `CATEGORY_NOT_DEFINED` |
+| LA SERENISIMA | Multi-categoría; LECHE LARGA VIDA no está contratada | `categoria: "CATEGORIA NO CONTRATADA"` + `CATEGORY_NOT_DEFINED` |
 
 ### Regla 2 — Preservar nombres comerciales de línea
 
@@ -68,11 +68,17 @@ Las abreviaciones del diccionario (`LIQ` para "Líquido", etc., en `building-sku
 
 ### Regla 3 — Validar categoría contra lista canónica
 
-El campo `categoria` debe ser **literalmente** uno de los valores de `references/categorias-contratadas.md` (74 categorías). Sin excepciones.
+El campo `categoria` debe ser **literalmente** uno de los valores de `references/categorias-contratadas.md` (74 categorías), o el literal `"CATEGORIA NO CONTRATADA"` cuando el producto está fuera de scope. Sin otros valores permitidos.
 
 Respetar mayúsculas, acentos y typos del archivo (ej: `LIUSTRAMUEBLES`, `PREMEZCALAS DULCES`, `CAFÉ` con tilde). Revisar la columna `NO INCLUYE` para descartar matches erróneos (chocolate para taza NO va a CHOCOLATES, vino Patero NO va a VINOS).
 
-Si no se puede asignar con certeza → `null` + `CATEGORY_NOT_DEFINED` en `review_reasons`.
+**Cómo decidir el valor:**
+
+- Producto matchea claramente con una de las 74 → usar ese valor literal.
+- Producto **fuera de las 74** (ej: BARRAS DE CEREAL, LECHE LARGA VIDA, AGUA MINERAL) → `categoria: "CATEGORIA NO CONTRATADA"` + `CATEGORY_NOT_DEFINED` en `review_reasons`.
+- Producto cae en una **exclusión explícita** (columna `NO INCLUYE` — chocolate para taza, vino Patero) → también `categoria: "CATEGORIA NO CONTRATADA"` + `CATEGORY_NOT_DEFINED`.
+- Categoría **ambigua entre dos opciones de la lista canónica** (no es que esté fuera de scope, no podés decidir cuál de las 74 aplica) → `categoria: null` + `LOW_CONFIDENCE`. Diferenciar de "no contratada".
+- Producto no identificable (imagen ilegible) → `categoria: null` + `PRODUCT_NOT_RECOGNIZED` (regla 1, no inventar).
 
 ### Regla 4 — Tarjetas de fidelidad y bancos: por SKU, no por bloque
 

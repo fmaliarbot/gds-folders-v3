@@ -111,7 +111,7 @@ La oferta cubre toda una marca, y la marca cubre productos de varias categorías
 
 **Ejemplo:** Folder muestra "ESPADOL todos los productos al 30%".
 
-**Regla:** sin lista canónica de marcas con sus categorías, generar **1 registro con `categoria: null`** y agregar `CATEGORY_NOT_DEFINED` a `review_reasons`.
+**Regla:** sin lista canónica de marcas con sus categorías, generar **1 registro con `categoria: null`** y agregar `CLOSED_BRAND_WITHOUT_CATEGORY_LIST` a `review_reasons`. El flag específico (no `CATEGORY_NOT_DEFINED`) marca la diferencia: ESPADOL puede tener productos en categorías contratadas y en categorías no contratadas — no es un caso de "fuera de scope" sino de "no se puede discriminar".
 
 ```json
 {
@@ -120,7 +120,7 @@ La oferta cubre toda una marca, y la marca cubre productos de varias categorías
   "descripcion": "ESPADOL TODOS",
   "tipo_promocion_oferta": "30%DTO",
   "needs_review": true,
-  "review_reasons": ["CATEGORY_NOT_DEFINED"],
+  "review_reasons": ["CLOSED_BRAND_WITHOUT_CATEGORY_LIST"],
   ...
 }
 ```

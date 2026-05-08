@@ -6,12 +6,13 @@ Lista canónica de las **74 categorías de productos** que GDSnet procesa actual
 
 ## Reglas de uso
 
-- El campo `categoria` de cualquier producto extraído **debe** ser literalmente uno de los valores de la columna `CATEGORIA` de esta tabla. Sin excepciones.
+- El campo `categoria` de cualquier producto extraído **debe** ser literalmente uno de los valores de la columna `CATEGORIA` de esta tabla, o el literal `"CATEGORIA NO CONTRATADA"` cuando corresponda (ver abajo). Sin excepciones.
 - Respetar **exactamente** las mayúsculas, acentos y typos del archivo. Por ejemplo `LIUSTRAMUEBLES` (con typo), `PREMEZCALAS DULCES` (con typo), `CAFÉ` (con tilde).
 - La columna `INCLUYE` describe qué tipo de productos caen en la categoría.
 - La columna `NO INCLUYE` describe productos que parecen pertenecer pero están explícitamente excluidos.
-- Si un producto no matchea claramente con ninguna categoría, dejar `categoria: null` y agregar `CATEGORY_NOT_DEFINED` a `review_reasons`.
-- Si un producto cae en una exclusión explícita (columna `NO INCLUYE`), también va a `null` + flag.
+- Si el producto cae **fuera del scope contratado** (no matchea ninguna de las 74 categorías), usar `categoria: "CATEGORIA NO CONTRATADA"` y agregar `CATEGORY_NOT_DEFINED` a `review_reasons`.
+- Si el producto cae en una **exclusión explícita** de la columna `NO INCLUYE` (ej: chocolate para taza, vino patero), también `categoria: "CATEGORIA NO CONTRATADA"` + `CATEGORY_NOT_DEFINED` — el producto existe pero está fuera de scope.
+- Si la categoría es **ambigua entre dos opciones de la lista canónica** (no es que esté fuera de scope, sino que no podés decidir cuál de las 74 aplica): `categoria: null` + `LOW_CONFIDENCE` en `review_reasons`. La distinción es importante: "no contratada" ≠ "no pude decidir".
 
 ## Tabla canónica
 
@@ -116,9 +117,8 @@ Categorías que **no figuran** en este archivo y que el agente puede ver ocasion
 - `ENCURTIDOS`, `ESPECIAS` — no contratadas
 - `LECHE EN POLVO`, `CACAO EN POLVO` (cuidado: existe `CACAO EN POLVO` como categoría propia)
 
-Cuando aparezcan productos de categorías no contratadas, el agente puede:
-- Extraer el producto si la marca y otros datos son visibles, dejar `categoria: null`, agregar `CATEGORY_NOT_DEFINED` a `review_reasons`.
-- O omitir el producto si claramente cae fuera del alcance contratado. Decisión de procesamiento downstream.
+Cuando aparezcan productos de categorías no contratadas, el agente debe:
+- Extraer el producto con la marca y demás datos visibles, y setear `categoria: "CATEGORIA NO CONTRATADA"` + `CATEGORY_NOT_DEFINED` en `review_reasons`. **Nunca omitir el producto** — la decisión de filtrar o conservar la fila es del pipeline downstream, no del agente.
 
 ### Macro-categorías de folder
 

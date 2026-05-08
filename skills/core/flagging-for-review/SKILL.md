@@ -42,12 +42,17 @@ Lista cerrada. SCREAMING_SNAKE_CASE.
 
 ### CATEGORY_NOT_DEFINED
 
-**Cuándo aplicar:** no se puede asignar la categoría canónica del producto contra `references/categorias-contratadas.md`. Casos típicos:
-- El producto cae fuera de la lista de 74 categorías contratadas (ej: BARRAS DE CEREAL, LECHE LARGA VIDA).
-- La categoría es ambigua entre dos opciones de la lista canónica.
-- El producto cae en una exclusión explícita (columna NO INCLUYE).
+**Cuándo aplicar:** el producto está **fuera del scope contratado por GDSnet**. Casos típicos:
+- El producto cae fuera de la lista de 74 categorías contratadas (ej: BARRAS DE CEREAL, LECHE LARGA VIDA, AGUA MINERAL, KOTEX).
+- El producto cae en una exclusión explícita de la columna `NO INCLUYE` (chocolate para taza, vino Patero).
 
-**Acción típica:** revisor consulta la base maestra y asigna la categoría correcta o descarta el producto si no es contratada.
+**Convención de `categoria` para este flag:** `categoria: "CATEGORIA NO CONTRATADA"` (literal). Nunca `null` cuando se aplica este flag — el literal explicita "el producto existe, pero no está contratado". El `null` queda reservado para casos donde no se pudo determinar la categoría por otro motivo (ver `LOW_CONFIDENCE` para ambigüedad y `PRODUCT_NOT_RECOGNIZED` para imagen ilegible).
+
+**Acción típica:** revisor consulta la base maestra y descarta el producto si no es contratada (decisión de procesamiento downstream — el agente nunca omite filas por este motivo).
+
+**Cuándo NO aplicar:**
+- Categoría **ambigua entre dos opciones de la lista canónica** (ej: un producto que podría ser GALLETAS DULCES o GALLETAS BOZCOCHOS) → usar `LOW_CONFIDENCE` con `categoria: null`. La distinción importa porque "no contratada" y "no pude decidir" son problemas distintos para el revisor humano.
+- Marca cerrada con productos en múltiples categorías sin info para discriminar (caso ESPADOL) → usar `CLOSED_BRAND_WITHOUT_CATEGORY_LIST` con `categoria: null`.
 
 ### PRICE_AMBIGUOUS
 
@@ -131,7 +136,7 @@ Si el agente identifica un caso problemático que no encaja en los códigos can�
 
 ```json
 {
-  "categoria": null,
+  "categoria": "CATEGORIA NO CONTRATADA",
   "marca": "LA SERENISIMA",
   "descripcion": "LA SERENISIMA LECHES LARGA VIDA",
   "precio_oferta": null,

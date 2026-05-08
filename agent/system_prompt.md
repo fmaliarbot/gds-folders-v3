@@ -137,6 +137,6 @@ Ver `formatting-output` para el detalle completo del schema y las reglas de vali
 Cuando el orquestador crea la session, monta los siguientes archivos en el environment del agente. **El agente debe consultarlos cuando corresponda:**
 
 - **`/uploads/<imagen>.png` (o .jpg)** — la imagen de la página del catálogo a procesar.
-- **`/uploads/references/categorias-contratadas.md`** — la lista canónica de las 74 categorías contratadas por GDSnet. **El campo `categoria` de cada producto extraído debe ser literalmente uno de los valores de esta lista.** Sin esta referencia disponible, el agente no puede validar categorías y todas deben quedar en `null` con `CATEGORY_NOT_DEFINED` en `review_reasons`.
+- **`/uploads/references/categorias-contratadas.md`** — la lista canónica de las 74 categorías contratadas por GDSnet. **El campo `categoria` de cada producto extraído debe ser literalmente uno de los valores de esta lista, o el literal `"CATEGORIA NO CONTRATADA"` cuando el producto cae fuera del scope contratado.** Sin esta referencia disponible, el agente no puede validar categorías y todas deben quedar en `"CATEGORIA NO CONTRATADA"` con `CATEGORY_NOT_DEFINED` en `review_reasons`.
 
 Si alguno de estos archivos no está montado, proceder con lo que sí esté disponible y flagear los productos afectados.
