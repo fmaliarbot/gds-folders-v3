@@ -114,7 +114,7 @@ def main() -> int:
     print(f"  id:      {agent.id}")
     print(f"  name:    {agent.name}")
     if args.model and args.model != agent.model.id:
-        print(f"  model:   {agent.model.id} → {args.model} (CAMBIO)")
+        print(f"  model:   {agent.model.id} -> {args.model} (CAMBIO)")
     else:
         print(f"  model:   {agent.model.id} (speed={agent.model.speed}) — se preserva")
     print(f"  version: {agent.version}")
