@@ -1,5 +1,18 @@
 # GDS Folders — Agente Extractor de Productos
 
+> ⚠️ **REPO ARCHIVADO — 2026-05-12**
+>
+> El código de este repo se mergeó a [`gds-folders-ingestion`](https://github.com/fmaliarbot/gds-folders-ingestion) bajo `resources/agent_v3/`.
+> Continuar el desarrollo de skills, system prompt y references **acá NO va a tener efecto productivo** — el container del Dispatcher/Triage lee del bake-in del repo de ingestion.
+>
+> Para iterar:
+> - **Cambios definitivos**: PR sobre `gds-folders-ingestion`, archivos bajo `resources/agent_v3/`.
+> - **Dev local** sobre un checkout alternativo: setear `GDS_FOLDERS_V3_DIR=/path/to/folder` antes de invocar el Dispatcher/Triage.
+>
+> Este repo queda como **referencia histórica** de cómo evolucionó el agente — incluye CHANGELOGs detallados que no se replicaron en el merge para no inflar el repo de ingestion. Ver commits `f1bc835` y anteriores para el árbol completo.
+
+---
+
 Sistema de agentes de IA para automatizar la extracción de productos de catálogos promocionales de supermercados argentinos para GDSnet.
 
 ## Arquitectura
